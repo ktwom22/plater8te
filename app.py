@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -21,6 +22,7 @@ migrate = Migrate(app, db)
 GOOGLE_PLACES_API_KEY = "AIzaSyDq7N9Jwponn2TKsDZ4jqjei7xWm_6ctvA"
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
+
 # ------------------ Models ------------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -31,6 +33,7 @@ class User(db.Model):
     likes = db.relationship('Like', backref='user', lazy=True)
     comments = db.relationship('Comment', backref='user', lazy=True)
 
+
 class Restaurant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
@@ -39,6 +42,7 @@ class Restaurant(db.Model):
     longitude = db.Column(db.Float)
     plates = db.relationship('Plate', backref='restaurant', lazy=True)
 
+
 class Plate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -46,33 +50,45 @@ class Plate(db.Model):
     category = db.Column(db.String(50))
     rating = db.Column(db.Integer)
     image_url = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)   # FIXED
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'))
     likes = db.relationship('Like', backref='plate', lazy=True)
     comments = db.relationship('Comment', backref='plate', lazy=True)
+
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'))
 
+
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'))
     text = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)   # FIXED
+
 
 # ------------------ Helpers ------------------
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ------------------ Routes ------------------
+
+# ------------------ Home ------------------
 @app.route('/')
 def home():
     plates = Plate.query.order_by(Plate.created_at.desc()).all()
+
+    # Fix any old rows missing created_at
+    for p in plates:
+        if p.created_at is None:
+            p.created_at = datetime.utcnow()
+            db.session.commit()
+
     return render_template('home.html', plates=plates)
+
 
 # ------------------ Authentication ------------------
 @app.route('/register', methods=['GET', 'POST'])
@@ -96,25 +112,31 @@ def register():
 
     return render_template('register.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
+
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             session['username'] = user.username
             flash('Logged in successfully!')
             return redirect(url_for('home'))
+
         flash('Invalid credentials')
+
     return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
     session.clear()
     flash('Logged out successfully!')
     return redirect(url_for('home'))
+
 
 # ------------------ Create Plate ------------------
 @app.route('/create_plate', methods=['GET', 'POST'])
@@ -139,9 +161,7 @@ def create_plate():
             return redirect(url_for('create_plate'))
 
         restaurant = Restaurant.query.filter_by(
-            name=restaurant_name,
-            latitude=restaurant_lat,
-            longitude=restaurant_lon
+            name=restaurant_name, latitude=restaurant_lat, longitude=restaurant_lon
         ).first()
 
         if not restaurant:
@@ -178,6 +198,7 @@ def create_plate():
 
     return render_template('create_plate.html')
 
+
 # ------------------ Plate Actions ------------------
 @app.route('/plate/<int:plate_id>/like', methods=['POST'])
 def like_plate(plate_id):
@@ -196,30 +217,37 @@ def like_plate(plate_id):
     count = Like.query.filter_by(plate_id=plate_id).count()
     return jsonify({'status': 'ok', 'like_count': count})
 
+
 @app.route('/plate/<int:plate_id>/comment', methods=['POST'])
 def comment_plate(plate_id):
     if 'user_id' not in session:
         return jsonify({'error': 'not logged in'}), 403
 
     text = request.form.get('text', '').strip()
-    if text:
-        comment = Comment(user_id=session['user_id'], plate_id=plate_id, text=text)
-        db.session.add(comment)
-        db.session.commit()
-        return jsonify({'status': 'ok', 'username': session['username'], 'text': text})
+    if not text:
+        return jsonify({'status': 'error', 'message': 'Comment cannot be empty'}), 400
 
-    return jsonify({'status': 'error', 'message': 'Comment cannot be empty'}), 400
+    comment = Comment(user_id=session['user_id'], plate_id=plate_id, text=text)
+    db.session.add(comment)
+    db.session.commit()
+
+    return jsonify({'status': 'ok', 'username': session['username'], 'text': text})
+
 
 # ------------------ Nearby Restaurants ------------------
 @app.route('/nearby_restaurants')
 def nearby_restaurants():
     lat = request.args.get('lat')
     lon = request.args.get('lon')
+
     if not lat or not lon:
         return jsonify({'restaurants': [], 'error': 'Missing coordinates'}), 400
 
     radius_meters = 16000  # 10 miles
-    url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lon}&radius={radius_meters}&type=restaurant&key={GOOGLE_PLACES_API_KEY}"
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?"
+        f"location={lat},{lon}&radius={radius_meters}&type=restaurant&key={GOOGLE_PLACES_API_KEY}"
+    )
     response = requests.get(url).json()
 
     restaurants = []
@@ -227,8 +255,12 @@ def nearby_restaurants():
         for res in response.get('results', []):
             place_id = res.get('place_id')
             website = ''
+
             if place_id:
-                details_url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&fields=website&key={GOOGLE_PLACES_API_KEY}"
+                details_url = (
+                    f"https://maps.googleapis.com/maps/api/place/details/json?"
+                    f"place_id={place_id}&fields=website&key={GOOGLE_PLACES_API_KEY}"
+                )
                 details_resp = requests.get(details_url).json()
                 website = details_resp.get('result', {}).get('website', '')
 
@@ -242,6 +274,9 @@ def nearby_restaurants():
 
     return jsonify({'restaurants': restaurants})
 
+
 # ------------------ Run App ------------------
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
