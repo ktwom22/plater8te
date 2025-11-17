@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ plate.name }}{% endblock %}
+
+{% block content %}
+<div class="card mb-4 shadow-sm">
+  <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
+  <div class="card-body">
+    <h3>{{ plate.name }} <span class="badge bg-success">{{ plate.rating }}/5</span></h3>
+    <p>{{ plate.description }}</p>
+    <p><strong>Restaurant:</strong> {{ plate.restaurant.name }}</p>
+    <button class="btn btn-outline-primary like-btn" data-plate="{{ plate.id }}">❤️ Like (<span class="like-count">{{ plate.likes|length }}</span>)</button>
+  </div>
+</div>
+
+<h4>Comments</h4>
+<ul class="list-group mb-3" id="comments-list">
+  {% for comment in plate.comments %}
+    <li class="list-group-item"><strong>{{ comment.user.username }}:</strong> {{ comment.text }}</li>
+  {% endfor %}
+</ul>
+
+<form id="comment-form">
+  <div class="mb-3">
+    <textarea class="form-control" name="text" placeholder="Write a comment..." required></textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">Comment</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // AJAX Like
+  document.querySelector('.like-btn').addEventListener('click', function(){
+    const btn = this;
+    fetch(`/plate/${btn.dataset.plate}/like`, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:`user_id={{ session.get('user_id', 0) }}`
+    }).then(res=>res.json())
+      .then(data=>{
+        if(data.status==='ok'){
+          btn.querySelector('.like-count').textContent = data.like_count;
+        }
+      });
+  });
+
+  // AJAX Comment
+  document.getElementById('comment-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    const text = this.text.value;
+    fetch(`/plate/{{ plate.id }}/comment`, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:`user_id={{ session.get('user_id',0) }}&text=${encodeURIComponent(text)}`
+    }).then(res=>res.json())
+      .then(data=>{
+        if(data.status==='ok'){
+          const ul = document.getElementById('comments-list');
+          const li = document.createElement('li');
+          li.className = 'list-group-item';
+          li.innerHTML = `<strong>{{ session.get('username') }}:</strong> ${data.comment}`;
+          ul.prepend(li);
+          document.getElementById('comment-form').reset();
+        }
+      });
+  });
+</script>
+{% endblock %}
