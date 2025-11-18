@@ -1,75 +1,99 @@
 {% extends "base.html" %}
+
 {% block title %}Play: Rate the Plate{% endblock %}
 
 {% block content %}
-<div class="container text-center my-4">
-    <h1>Rate the Plate</h1>
-    <div id="plate-game" class="my-4">
-        <img id="plate-image" src="" class="img-fluid rounded shadow-sm mb-2" style="max-height:300px;">
-        <h3 id="plate-name"></h3>
-        <p id="plate-description"></p>
-        <p id="plate-restaurant" class="text-muted"></p>
-        <div class="d-flex justify-content-center gap-2 mt-2">
-            <button class="btn btn-danger" id="dislike-btn">⬅️ Dislike</button>
-            <button class="btn btn-warning" id="superlike-btn">⬆️ Super Like</button>
-            <button class="btn btn-success" id="like-btn">➡️ Like</button>
-        </div>
+<div class="container my-4 text-center">
+    <h1 class="mb-4">Play: Rate the Plate</h1>
+
+    <div id="game-container" style="position: relative; height: 400px;">
+        <!-- Plate cards will appear here -->
     </div>
-    <p id="game-complete" class="mt-3" style="display:none;">No more plates nearby!</p>
+
+    <div class="mt-3">
+        <button class="btn btn-success me-2" onclick="swipe('up')">💛 Super Like</button>
+        <button class="btn btn-primary me-2" onclick="swipe('right')">❤️ Like</button>
+        <button class="btn btn-danger" onclick="swipe('left')">❌ Dislike</button>
+    </div>
+
+    <p id="status" class="mt-2"></p>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-let plates = [];
+let plates = {{ plates|tojson }};
 let currentIndex = 0;
-let lat, lon;
+const container = document.getElementById('game-container');
+const status = document.getElementById('status');
 
-// Get user location
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function(position){
-        lat = position.coords.latitude;
-        lon = position.coords.longitude;
-        fetchPlates();
-    }, function(){ alert('Cannot get location'); });
-} else { alert('Geolocation not supported'); }
-
-function fetchPlates(){
-    fetch(`/get_plates_nearby?lat=${lat}&lon=${lon}`)
-        .then(res=>res.json())
-        .then(data=>{
-            if(data.plates && data.plates.length>0){
-                plates = data.plates;
-                currentIndex = 0;
-                showPlate();
-            } else { document.getElementById('game-complete').style.display='block'; }
-        });
-}
-
-function showPlate(){
-    if(currentIndex >= plates.length){
-        document.getElementById('plate-game').style.display='none';
-        document.getElementById('game-complete').style.display='block';
+function showPlate(index) {
+    container.innerHTML = '';
+    if(index >= plates.length){
+        container.innerHTML = '<p>No more plates! 🎉</p>';
         return;
     }
-    const p = plates[currentIndex];
-    document.getElementById('plate-image').src = p.image_url;
-    document.getElementById('plate-name').textContent = p.name + ' (' + p.rating + '/5)';
-    document.getElementById('plate-description').textContent = p.description;
-    document.getElementById('plate-restaurant').textContent = p.restaurant_name;
+
+    const plate = plates[index];
+    const card = document.createElement('div');
+    card.className = 'card shadow-sm';
+    card.style.position = 'absolute';
+    card.style.width = '100%';
+    card.style.height = '100%';
+    card.style.borderRadius = '16px';
+    card.style.overflow = 'hidden';
+    card.style.touchAction = 'none';
+    card.style.userSelect = 'none';
+
+    card.innerHTML = `
+        <img src="${plate.image_url}" class="card-img-top" style="height: 100%; object-fit: cover;">
+        <div class="card-body bg-light">
+            <h5 class="card-title">${plate.name} (${plate.rating}/5)</h5>
+            <p class="card-text">${plate.description}</p>
+            <small class="text-muted">${plate.restaurant ? plate.restaurant.name : 'Unknown restaurant'}</small>
+        </div>
+    `;
+
+    // touch/swipe
+    let startX, startY;
+    card.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+    });
+
+    card.addEventListener('touchend', e => {
+        const endX = e.changedTouches[0].clientX;
+        const endY = e.changedTouches[0].clientY;
+        const dx = endX - startX;
+        const dy = endY - startY;
+
+        if(Math.abs(dx) > Math.abs(dy)){ // horizontal swipe
+            if(dx > 50) swipe('right');
+            else if(dx < -50) swipe('left');
+        } else { // vertical swipe
+            if(dy < -50) swipe('up'); // swipe up
+        }
+    });
+
+    container.appendChild(card);
 }
 
-function sendAction(action){
-    const p = plates[currentIndex];
-    fetch(`/plate/${p.id}/play_action`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({action:action})
-    }).then(res=>res.json()).then(()=>{ currentIndex++; showPlate(); });
+function swipe(direction){
+    if(currentIndex >= plates.length) return;
+    const plate = plates[currentIndex];
+
+    fetch(`/plate/${plate.id}/swipe`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({direction: direction})
+    });
+
+    status.textContent = `You ${direction}ed: ${plate.name}`;
+    currentIndex++;
+    showPlate(currentIndex);
 }
 
-document.getElementById('like-btn').addEventListener('click', ()=>sendAction('like'));
-document.getElementById('dislike-btn').addEventListener('click', ()=>sendAction('dislike'));
-document.getElementById('superlike-btn').addEventListener('click', ()=>sendAction('superlike'));
+// initialize
+showPlate(currentIndex);
 </script>
 {% endblock %}
