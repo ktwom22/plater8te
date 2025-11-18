@@ -15,12 +15,9 @@
 
     <style>
         body { background-color: #f5f5f5; }
-
         .card-img-top { object-fit: cover; height: 250px; }
         .comment-section ul { max-height: 200px; overflow-y: auto; }
-
         .btn { min-width: 48%; }
-
         @media (max-width: 576px) {
             .card-img-top { height: 200px; }
             .btn { min-width: 100%; margin-bottom: 5px; }
@@ -39,12 +36,22 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         {% if session.get('user_id') %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('create_plate') }}">Post Plate</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('play') }}">Play: Rate the Plate</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout ({{ session.get('username') }})</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('create_plate') }}">Post Plate</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('play') }}">Play: Rate the Plate</a></li>
+          <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  My Plates
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                  <li><a class="dropdown-item" href="{{ url_for('my_plates') }}">All Plates</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('favorites') }}">Favorites</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('unrated_plates') }}">Unrated Plates</a></li>
+              </ul>
+          </li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout ({{ session.get('username') }})</a></li>
         {% else %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Register</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Register</a></li>
         {% endif %}
       </ul>
     </div>

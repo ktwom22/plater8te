@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>My Unrated Plates</h2>
+{% if plates %}
+<ul>
+    {% for plate in plates %}
+    <li>
+        <img src="{{ plate.image_url or url_for('static', filename='uploads/placeholder.png') }}" width="100">
+        <strong>{{ plate.name }}</strong> - {{ plate.restaurant.name if plate.restaurant else '' }}
+        <form class="favorite-form" data-plate="{{ plate.id }}">
+            <button type="button" class="favorite-btn">
+                {% if plate.user_status|length > 0 and plate.user_status[0].favorited %}❤️{% else %}🤍{% endif %}
+            </button>
+        </form>
+        <a href="{{ url_for('play') }}">Rate</a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No unrated plates available. Check back later!</p>
+{% endif %}
+<script>
+document.querySelectorAll('.favorite-form').forEach(form => {
+    form.querySelector('.favorite-btn').addEventListener('click', async () => {
+        const plateId = form.dataset.plate
+        const resp = await fetch(`/plate/${plateId}/favorite`, {method:'POST'})
+        const data = await resp.json()
+        if (data.favorited) form.querySelector('.favorite-btn').textContent = '❤️'
+        else form.querySelector('.favorite-btn').textContent = '🤍'
+    })
+})
+</script>
+{% endblock %}
