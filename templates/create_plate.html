@@ -7,21 +7,25 @@
     <h1 class="text-center mb-4">Post a Plate</h1>
 
     <form method="POST" enctype="multipart/form-data" id="plate-form">
+        <!-- Plate Name -->
         <div class="mb-3">
             <label for="name" class="form-label">Plate Name</label>
             <input type="text" class="form-control" id="name" name="name" placeholder="e.g., Spicy Ramen" required>
         </div>
 
+        <!-- Description -->
         <div class="mb-3">
             <label for="description" class="form-label">Description</label>
             <textarea class="form-control" id="description" name="description" rows="3" placeholder="Describe your plate..." required></textarea>
         </div>
 
+        <!-- Category -->
         <div class="mb-3">
             <label for="category" class="form-label">Category</label>
             <input type="text" class="form-control" id="category" name="category" placeholder="e.g., Japanese, Dessert" required>
         </div>
 
+        <!-- Rating -->
         <div class="mb-3">
             <label for="rating" class="form-label">Rating (1-5)</label>
             <input type="number" class="form-control" id="rating" name="rating" min="1" max="5" required>
@@ -36,7 +40,7 @@
         <!-- Restaurant Selection -->
         <div class="mb-3">
             <label class="form-label">Select Restaurant</label>
-            <div class="d-flex gap-2 mb-2">
+            <div class="d-flex flex-column flex-sm-row gap-2 mb-2">
                 <button type="button" class="btn btn-outline-primary flex-grow-1" onclick="useNearby()">Nearby Restaurants</button>
                 <button type="button" class="btn btn-outline-secondary flex-grow-1" onclick="useLocationInput()">Search by Zip or City, State</button>
             </div>
@@ -44,10 +48,10 @@
             <!-- Zip/City input -->
             <div id="location-section" class="mb-2" style="display:none;">
                 <input type="text" id="location-input" class="form-control mb-2" placeholder="Enter zip code or city, state">
-                <button type="button" class="btn btn-sm btn-primary mb-2" onclick="fetchRestaurants()">Search</button>
+                <button type="button" class="btn btn-primary w-100 mb-2" onclick="fetchRestaurants()">Search</button>
             </div>
 
-            <!-- Restaurant selection list -->
+            <!-- Restaurant select -->
             <select class="form-select mb-2" id="restaurant-list" required>
                 <option value="">Select a restaurant</option>
             </select>
@@ -74,7 +78,7 @@ let useNearbyFlag = false;
 function useNearby() {
     useNearbyFlag = true;
     document.getElementById('location-section').style.display = 'none';
-    document.getElementById('restaurant-list').innerHTML = '<option value="">Loading nearby restaurants...</option>';
+    document.getElementById('restaurant-list').innerHTML = '<option>Loading nearby restaurants...</option>';
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(position) {
@@ -99,10 +103,7 @@ function fetchRestaurants() {
     let url = '/nearby_restaurants';
     if (!useNearbyFlag) {
         const loc = document.getElementById('location-input').value.trim();
-        if (!loc) {
-            alert('Please enter a zip code or city, state.');
-            return;
-        }
+        if (!loc) { alert('Please enter a zip code or city, state.'); return; }
         url += `?location=${encodeURIComponent(loc)}`;
     } else {
         url += `?lat=${lat}&lon=${lon}`;
@@ -114,29 +115,23 @@ function fetchRestaurants() {
             const select = document.getElementById('restaurant-list');
             select.innerHTML = '<option value="">Select a restaurant</option>';
 
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
+            if (data.error) { alert(data.error); return; }
 
             if (data.restaurants && data.restaurants.length > 0) {
                 data.restaurants.forEach(r => {
                     const option = document.createElement('option');
-                    option.value = JSON.stringify(r); // store full object
+                    option.value = JSON.stringify(r);
                     option.textContent = `${r.name} (${r.address})`;
                     select.appendChild(option);
                 });
-            } else {
-                alert('No restaurants found.');
-            }
+            } else { alert('No restaurants found.'); }
         });
 }
 
-// Update hidden fields when restaurant selected
+// Update hidden fields on selection
 document.getElementById('restaurant-list').addEventListener('change', function() {
     const selected = this.value;
     if (!selected) return;
-
     const r = JSON.parse(selected);
     document.getElementById('restaurant_name').value = r.name;
     document.getElementById('restaurant_address').value = r.address;

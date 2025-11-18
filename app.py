@@ -246,7 +246,23 @@ def nearby_restaurants():
 # ------------------ Play: Rate the Plate ------------------
 @app.route('/play')
 def play():
-    return render_template('play.html')
+    # Just grab 10 plates (ignore user location for now)
+    plates = Plate.query.limit(10).all()
+
+    # Convert to dict for JSON
+    plates_data = []
+    for p in plates:
+        plates_data.append({
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "rating": p.rating,
+            "image_url": p.image_url,
+            "restaurant": {"name": p.restaurant.name} if p.restaurant else None
+        })
+
+    return render_template('play.html', plates=plates_data)
+
 
 @app.route('/get_plates_nearby')
 def get_plates_nearby():
@@ -283,6 +299,15 @@ def play_action(plate_id):
             db.session.add(Like(user_id=session['user_id'], plate_id=plate_id))
             db.session.commit()
     return jsonify({'status':'ok','action':action})
+
+@app.route('/plate/<int:plate_id>/swipe', methods=['POST'])
+def plate_swipe(plate_id):
+    data = request.get_json()
+    direction = data.get('direction')
+    # Save swipe to DB here if needed
+    print(f"User swiped {direction} on plate {plate_id}")
+    return jsonify({"status": "ok"})
+
 
 # ------------------ Run App ------------------
 if __name__ == '__main__':
