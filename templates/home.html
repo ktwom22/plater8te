@@ -28,7 +28,6 @@
     flex-direction: column;
 }
 
-/* Keep images uniform height like Instagram */
 .card {
     display: flex;
     flex-direction: column;
@@ -51,100 +50,97 @@
 
     <div class="row justify-content-center" id="plate-feed" data-user="{{ session.get('user_id') }}">
         {% for plate in plates %}
-        <div class="col-12 col-md-6 col-lg-4 mb-4">
-            <div class="card shadow-sm">
+            <div class="col-12 col-md-6 col-lg-4 mb-4">
+                <div class="card shadow-sm">
 
-                <!-- IMAGE -->
-                <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
+                    <!-- IMAGE -->
+                    <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
 
-                <div class="card-body">
+                    <div class="card-body">
 
-                    <!-- USER + DATE -->
-                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
-                        <span class="fw-bold">
-                            {{ plate.user.username if plate.user else "Unknown User" }}
-                        </span>
-
-                        {% if plate.created_at %}
-                            <span class="text-muted small">
-                                {{ plate.created_at.strftime('%b %d, %Y') }}
+                        <!-- USER + DATE -->
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
+                            <span class="fw-bold">
+                                {{ plate.user.username if plate.user else "Unknown User" }}
                             </span>
-                        {% else %}
-                            <span class="text-muted small">No date</span>
-                        {% endif %}
-                    </div>
 
-                    <!-- NAME + RATING -->
-                    <h5 class="card-title mb-1">
-                        {{ plate.name }}
-                        <span class="text-warning">({{ plate.rating }}/5)</span>
-                    </h5>
-
-                    <!-- DESCRIPTION -->
-                    <p class="card-text mb-2">{{ plate.description }}</p>
-
-                    <!-- RESTAURANT DETAILS -->
-                    <p class="mb-2 text-muted small">
-                        {% if plate.restaurant %}
-                            Restaurant:
-                            {% if plate.restaurant.website %}
-                                <a href="{{ plate.restaurant.website }}" target="_blank">
-                                    {{ plate.restaurant.name }}
-                                </a>
+                            {% if plate.created_at %}
+                                <span class="text-muted small">
+                                    {{ plate.created_at.strftime('%b %d, %Y') }}
+                                </span>
                             {% else %}
-                                {{ plate.restaurant.name }}
+                                <span class="text-muted small">No date</span>
                             {% endif %}
+                        </div>
 
-                            <br>Address: {{ plate.restaurant.address }}
-                        {% else %}
-                            <em>No restaurant info</em>
-                        {% endif %}
-                    </p>
+                        <!-- NAME + RATING -->
+                        <h5 class="card-title mb-1">
+                            {{ plate.name }}
+                            <span class="text-warning">({{ plate.rating }}/5)</span>
+                        </h5>
 
-                    <!-- BUTTONS -->
-                    <div class="d-flex justify-content-between mt-auto flex-wrap gap-2">
-                        <button
-                            class="btn btn-outline-primary btn-sm like-btn flex-grow-1"
-                            data-plate="{{ plate.id }}"
-                        >
-                            ❤️ Like (<span class="like-count">{{ plate.like_count }}</span>)
-                        </button>
+                        <!-- DESCRIPTION -->
+                        <p class="card-text mb-2">{{ plate.description }}</p>
 
-                        <button
-                            class="btn btn-outline-secondary btn-sm comment-toggle flex-grow-1"
-                            data-plate="{{ plate.id }}"
-                        >
-                            💬 Comment
-                        </button>
+                        <!-- RESTAURANT DETAILS -->
+                        <p class="mb-2 text-muted small">
+                            {% if plate.restaurant %}
+                                <strong>Restaurant:</strong> {{ plate.restaurant.name }}<br>
+
+                                {% if plate.restaurant.website %}
+                                    {% set website_url = plate.restaurant.website %}
+                                    {% if not website_url.startswith('http') %}
+                                        {% set website_url = 'https://' ~ website_url %}
+                                    {% endif %}
+                                    <strong>Website:</strong>
+                                    <a href="{{ website_url }}" target="_blank" rel="noopener">{{ website_url }}</a><br>
+                                {% endif %}
+
+                                <strong>Address:</strong>
+                                {% if plate.restaurant.latitude and plate.restaurant.longitude %}
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ plate.restaurant.latitude }},{{ plate.restaurant.longitude }}" target="_blank" rel="noopener">
+                                        {{ plate.restaurant.address }}
+                                    </a>
+                                {% else %}
+                                    {{ plate.restaurant.address }}
+                                {% endif %}
+                            {% else %}
+                                <em>No restaurant info</em>
+                            {% endif %}
+                        </p>
+
+                        <!-- BUTTONS -->
+                        <div class="d-flex justify-content-between mt-auto flex-wrap gap-2">
+                            <button class="btn btn-outline-primary btn-sm like-btn flex-grow-1" data-plate="{{ plate.id }}">
+                                ❤️ Like (<span class="like-count">{{ plate.like_count or 0 }}</span>)
+                            </button>
+
+                            <button class="btn btn-outline-secondary btn-sm comment-toggle flex-grow-1" data-plate="{{ plate.id }}">
+                                💬 Comment
+                            </button>
+                        </div>
+
+                        <!-- COMMENTS -->
+                        <div class="comment-section mt-2" id="comments-{{ plate.id }}" style="display:none;">
+                            <ul class="list-group mb-2">
+                                {% for comment in plate.comments %}
+                                    <li class="list-group-item py-1 px-2">
+                                        <strong>{{ comment.user.username }}:</strong> {{ comment.text }}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+
+                            <form class="comment-form" data-plate="{{ plate.id }}">
+                                <div class="input-group input-group-sm">
+                                    <input type="text" name="text" class="form-control" placeholder="Write a comment..." required>
+                                    <button class="btn btn-primary" type="submit">Post</button>
+                                </div>
+                            </form>
+                        </div>
+
                     </div>
-
-                    <!-- COMMENTS -->
-                    <div class="comment-section mt-2" id="comments-{{ plate.id }}" style="display:none;">
-                        <ul class="list-group mb-2">
-                            {% for comment in plate.comments %}
-                            <li class="list-group-item py-1 px-2">
-                                <strong>{{ comment.user.username }}:</strong> {{ comment.text }}
-                            </li>
-                            {% endfor %}
-                        </ul>
-
-                        <form class="comment-form" data-plate="{{ plate.id }}">
-                            <div class="input-group input-group-sm">
-                                <input
-                                    type="text"
-                                    name="text"
-                                    class="form-control"
-                                    placeholder="Write a comment..."
-                                    required
-                                >
-                                <button class="btn btn-primary" type="submit">Post</button>
-                            </div>
-                        </form>
-                    </div>
-
                 </div>
             </div>
-        </div>
         {% endfor %}
     </div>
 </div>
@@ -204,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(res => res.json())
         .then(data => {
-            if (data.success) {
+            if (data.status === 'ok') {
                 const ul = form.previousElementSibling;
                 const li = document.createElement('li');
                 li.className = 'list-group-item py-1 px-2';
