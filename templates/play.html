@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Play: Rate the Plate{% endblock %}
+
+{% block content %}
+<div class="container text-center my-4">
+    <h1>Rate the Plate</h1>
+    <div id="plate-game" class="my-4">
+        <img id="plate-image" src="" class="img-fluid rounded shadow-sm mb-2" style="max-height:300px;">
+        <h3 id="plate-name"></h3>
+        <p id="plate-description"></p>
+        <p id="plate-restaurant" class="text-muted"></p>
+        <div class="d-flex justify-content-center gap-2 mt-2">
+            <button class="btn btn-danger" id="dislike-btn">⬅️ Dislike</button>
+            <button class="btn btn-warning" id="superlike-btn">⬆️ Super Like</button>
+            <button class="btn btn-success" id="like-btn">➡️ Like</button>
+        </div>
+    </div>
+    <p id="game-complete" class="mt-3" style="display:none;">No more plates nearby!</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let plates = [];
+let currentIndex = 0;
+let lat, lon;
+
+// Get user location
+if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(position){
+        lat = position.coords.latitude;
+        lon = position.coords.longitude;
+        fetchPlates();
+    }, function(){ alert('Cannot get location'); });
+} else { alert('Geolocation not supported'); }
+
+function fetchPlates(){
+    fetch(`/get_plates_nearby?lat=${lat}&lon=${lon}`)
+        .then(res=>res.json())
+        .then(data=>{
+            if(data.plates && data.plates.length>0){
+                plates = data.plates;
+                currentIndex = 0;
+                showPlate();
+            } else { document.getElementById('game-complete').style.display='block'; }
+        });
+}
+
+function showPlate(){
+    if(currentIndex >= plates.length){
+        document.getElementById('plate-game').style.display='none';
+        document.getElementById('game-complete').style.display='block';
+        return;
+    }
+    const p = plates[currentIndex];
+    document.getElementById('plate-image').src = p.image_url;
+    document.getElementById('plate-name').textContent = p.name + ' (' + p.rating + '/5)';
+    document.getElementById('plate-description').textContent = p.description;
+    document.getElementById('plate-restaurant').textContent = p.restaurant_name;
+}
+
+function sendAction(action){
+    const p = plates[currentIndex];
+    fetch(`/plate/${p.id}/play_action`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:action})
+    }).then(res=>res.json()).then(()=>{ currentIndex++; showPlate(); });
+}
+
+document.getElementById('like-btn').addEventListener('click', ()=>sendAction('like'));
+document.getElementById('dislike-btn').addEventListener('click', ()=>sendAction('dislike'));
+document.getElementById('superlike-btn').addEventListener('click', ()=>sendAction('superlike'));
+</script>
+{% endblock %}
