@@ -3,7 +3,6 @@
 {% block title %}Plate Feed{% endblock %}
 
 {% block content %}
-
 <style>
 /* --- MOBILE FRIENDLY + MODERN FEED CARDS --- */
 .card {
@@ -43,41 +42,51 @@
         width: 48%;
     }
 }
+
+/* Search bar tweaks */
+#location-input {
+    flex: 1 1 auto;
+}
+#radius-select {
+    max-width: 120px;
+}
 </style>
 
 <div class="container">
     <h1 class="mb-4 text-center">Plate Feed</h1>
 
+    <!-- Search Bar -->
+    <div class="row mb-4 justify-content-center">
+        <div class="col-12 col-md-8">
+            <div class="input-group mb-2">
+                <input type="text" id="location-input" class="form-control" placeholder="Enter zip code or city, state">
+                <select id="radius-select" class="form-select">
+                    <option value="5">5 mi</option>
+                    <option value="10" selected>10 mi</option>
+                    <option value="20">20 mi</option>
+                    <option value="50">50 mi</option>
+                </select>
+                <button class="btn btn-primary" id="search-btn">Search</button>
+            </div>
+        </div>
+    </div>
+
     <div class="row justify-content-center" id="plate-feed" data-user="{{ session.get('user_id') }}">
         {% for plate in plates %}
-            <div class="col-12 col-md-6 col-lg-4 mb-4">
+            <div class="col-12 col-md-6 col-lg-4 mb-4 plate-card" data-lat="{{ plate.restaurant.latitude }}" data-lon="{{ plate.restaurant.longitude }}">
                 <div class="card shadow-sm">
-
-                    <!-- IMAGE -->
                     <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
-
                     <div class="card-body">
-
                         <!-- USER + DATE -->
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
-                            <span class="fw-bold">
-                                {{ plate.user.username if plate.user else "Unknown User" }}
+                            <span class="fw-bold">{{ plate.user.username if plate.user else "Unknown User" }}</span>
+                            <span class="text-muted small">
+                                {{ plate.created_at.strftime('%b %d, %Y') if plate.created_at else 'No date' }}
                             </span>
-
-                            {% if plate.created_at %}
-                                <span class="text-muted small">
-                                    {{ plate.created_at.strftime('%b %d, %Y') }}
-                                </span>
-                            {% else %}
-                                <span class="text-muted small">No date</span>
-                            {% endif %}
                         </div>
 
                         <!-- NAME + RATING -->
-                        <h5 class="card-title mb-1">
-                            {{ plate.name }}
-                            <span class="text-warning">({{ plate.rating }}/5)</span>
-                        </h5>
+                        <h5 class="card-title mb-1">{{ plate.name }} <span class="text-warning">({{ plate.rating }}/5)</span></h5>
 
                         <!-- DESCRIPTION -->
                         <p class="card-text mb-2">{{ plate.description }}</p>
@@ -86,17 +95,6 @@
                         <p class="mb-2 text-muted small">
                             {% if plate.restaurant %}
                                 <strong>Restaurant:</strong> {{ plate.restaurant.name }}<br>
-
-                                {% if plate.restaurant.website %}
-                                    {% set website_url = plate.restaurant.website %}
-                                    {% if not website_url.startswith('http') %}
-                                        {% set website_url = 'https://' ~ website_url %}
-                                    {% endif %}
-                                    <strong>Website:</strong>
-                                    <a href="{{ website_url }}" target="_blank" rel="noopener">{{ website_url }}</a><br>
-                                {% endif %}
-
-                                <strong>Address:</strong>
                                 {% if plate.restaurant.latitude and plate.restaurant.longitude %}
                                     <a href="https://www.google.com/maps/dir/?api=1&destination={{ plate.restaurant.latitude }},{{ plate.restaurant.longitude }}" target="_blank" rel="noopener">
                                         {{ plate.restaurant.address }}
@@ -114,7 +112,6 @@
                             <button class="btn btn-outline-primary btn-sm like-btn flex-grow-1" data-plate="{{ plate.id }}">
                                 ❤️ Like (<span class="like-count">{{ plate.like_count or 0 }}</span>)
                             </button>
-
                             <button class="btn btn-outline-secondary btn-sm comment-toggle flex-grow-1" data-plate="{{ plate.id }}">
                                 💬 Comment
                             </button>
@@ -124,12 +121,9 @@
                         <div class="comment-section mt-2" id="comments-{{ plate.id }}" style="display:none;">
                             <ul class="list-group mb-2">
                                 {% for comment in plate.comments %}
-                                    <li class="list-group-item py-1 px-2">
-                                        <strong>{{ comment.user.username }}:</strong> {{ comment.text }}
-                                    </li>
+                                    <li class="list-group-item py-1 px-2"><strong>{{ comment.user.username }}:</strong> {{ comment.text }}</li>
                                 {% endfor %}
                             </ul>
-
                             <form class="comment-form" data-plate="{{ plate.id }}">
                                 <div class="input-group input-group-sm">
                                     <input type="text" name="text" class="form-control" placeholder="Write a comment..." required>
@@ -137,79 +131,100 @@
                                 </div>
                             </form>
                         </div>
-
                     </div>
                 </div>
             </div>
         {% endfor %}
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
+// --- LIKE & COMMENT HANDLERS ---
 document.addEventListener('DOMContentLoaded', function () {
     const plateFeed = document.getElementById('plate-feed');
     const userId = plateFeed.dataset.user;
 
-    // --- LIKE BUTTON ---
+    // LIKE
     plateFeed.addEventListener('click', function (e) {
         const btn = e.target.closest('.like-btn');
         if (!btn) return;
-
         const plateId = btn.dataset.plate;
-
-        fetch(`/plate/${plateId}/like`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `user_id=${userId}`
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.like_count !== undefined) {
-                btn.querySelector('.like-count').textContent = data.like_count;
-            }
-        });
+        fetch(`/plate/${plateId}/like`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`user_id=${userId}`})
+            .then(res=>res.json())
+            .then(data=> { if(data.like_count!==undefined) btn.querySelector('.like-count').textContent = data.like_count; });
     });
 
-    // --- COMMENT TOGGLE ---
+    // COMMENT TOGGLE
     plateFeed.addEventListener('click', function (e) {
         const toggle = e.target.closest('.comment-toggle');
         if (!toggle) return;
-
         const plateId = toggle.dataset.plate;
         const section = document.getElementById(`comments-${plateId}`);
-
-        section.style.display = section.style.display === 'none' ? 'block' : 'none';
+        section.style.display = section.style.display==='none'?'block':'none';
     });
 
-    // --- COMMENT SUBMIT ---
+    // COMMENT SUBMIT
     plateFeed.addEventListener('submit', function (e) {
-        if (!e.target.classList.contains('comment-form')) return;
-
+        if(!e.target.classList.contains('comment-form')) return;
         e.preventDefault();
         const form = e.target;
         const plateId = form.dataset.plate;
         const text = form.querySelector('input[name="text"]').value;
+        fetch(`/plate/${plateId}/comment`, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`user_id=${userId}&text=${encodeURIComponent(text)}`})
+            .then(res=>res.json())
+            .then(data=>{
+                if(data.status==='ok'){
+                    const ul = form.previousElementSibling;
+                    const li = document.createElement('li');
+                    li.className='list-group-item py-1 px-2';
+                    li.innerHTML=`<strong>${data.username}:</strong> ${text}`;
+                    ul.appendChild(li);
+                    form.reset();
+                }
+            });
+    });
+});
 
-        fetch(`/plate/${plateId}/comment`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `user_id=${userId}&text=${encodeURIComponent(text)}`
-        })
+// --- SEARCH BY ZIP/CITY & RADIUS ---
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 3958.8; // miles
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLon = (lon2-lon1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R*c;
+}
+
+document.getElementById('search-btn').addEventListener('click', function(){
+    let query = document.getElementById('location-input').value.trim();
+    const radius = parseFloat(document.getElementById('radius-select').value); // in miles
+    if(!query){ alert('Enter zip code or city, state'); return; }
+
+    // If ZIP, append ', USA' for Nominatim
+    if(/^\d{5}$/.test(query)){
+        query += ', USA';
+    }
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
-            if (data.status === 'ok') {
-                const ul = form.previousElementSibling;
-                const li = document.createElement('li');
-                li.className = 'list-group-item py-1 px-2';
-                li.innerHTML = `<strong>${data.username}:</strong> ${text}`;
-                ul.appendChild(li);
-                form.reset();
-            }
-        });
-    });
+            if(!data || data.length === 0){ alert('Location not found'); return; }
+            const loc = data[0];
+            const searchLat = parseFloat(loc.lat);
+            const searchLon = parseFloat(loc.lon);
+
+            const plates = document.querySelectorAll('.plate-card');
+            plates.forEach(p=>{
+                const platLat = parseFloat(p.dataset.lat);
+                const platLon = parseFloat(p.dataset.lon);
+                if(isNaN(platLat) || isNaN(platLon)){ p.style.display='none'; return; }
+                const dist = getDistance(searchLat, searchLon, platLat, platLon);
+                p.style.display = dist <= radius ? 'block' : 'none';
+            });
+        })
+        .catch(err => alert('Error fetching location'));
 });
 </script>
 {% endblock %}

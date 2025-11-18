@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import requests
+import math
 
 # ------------------ App Setup ------------------
 app = Flask(__name__)
@@ -19,9 +20,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-GOOGLE_PLACES_API_KEY = "AIzaSyDq7N9Jwponn2TKsDZ4jqjei7xWm_6ctvA"
+GOOGLE_API_KEY = "YOUR_GOOGLE_API_KEY_HERE"
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-
 
 # ------------------ Models ------------------
 class User(db.Model):
@@ -33,7 +33,6 @@ class User(db.Model):
     likes = db.relationship('Like', backref='user', lazy=True)
     comments = db.relationship('Comment', backref='user', lazy=True)
 
-
 class Restaurant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
@@ -42,7 +41,6 @@ class Restaurant(db.Model):
     longitude = db.Column(db.Float)
     plates = db.relationship('Plate', backref='restaurant', lazy=True)
 
-
 class Plate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -50,45 +48,67 @@ class Plate(db.Model):
     category = db.Column(db.String(50))
     rating = db.Column(db.Integer)
     image_url = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)   # FIXED
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'))
     likes = db.relationship('Like', backref='plate', lazy=True)
     comments = db.relationship('Comment', backref='plate', lazy=True)
-
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'))
 
-
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'))
     text = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)   # FIXED
-
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ------------------ Helpers ------------------
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def haversine(lat1, lon1, lat2, lon2):
+    R = 3958.8  # miles
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dlon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
 
-# ------------------ Home ------------------
+# ------------------ Routes ------------------
+
 @app.route('/')
 def home():
-    plates = Plate.query.order_by(Plate.created_at.desc()).all()
+    category = request.args.get('category')
+    location = request.args.get('location')
+    radius = float(request.args.get('radius', 10))  # miles
 
-    # Fix any old rows missing created_at
-    for p in plates:
-        if p.created_at is None:
-            p.created_at = datetime.utcnow()
-            db.session.commit()
+    plates_query = Plate.query
+
+    if category:
+        plates_query = plates_query.filter_by(category=category)
+
+    plates = plates_query.all()
+
+    if location:
+        # Geocode location using Google API
+        geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json?address={location}&key={GOOGLE_API_KEY}"
+        resp = requests.get(geocode_url).json()
+        if resp.get('status') == 'OK' and resp['results']:
+            user_lat = resp['results'][0]['geometry']['location']['lat']
+            user_lon = resp['results'][0]['geometry']['location']['lng']
+
+            plates = [
+                p for p in plates if p.restaurant and p.restaurant.latitude and p.restaurant.longitude
+                and haversine(user_lat, user_lon, p.restaurant.latitude, p.restaurant.longitude) <= radius
+            ]
+        else:
+            flash("Location not found, showing all plates.", "warning")
 
     return render_template('home.html', plates=plates)
-
 
 # ------------------ Authentication ------------------
 @app.route('/register', methods=['GET', 'POST'])
@@ -97,11 +117,9 @@ def register():
         username = request.form['username']
         email = request.form['email']
         password = generate_password_hash(request.form['password'])
-
         if User.query.filter_by(email=email).first():
             flash('Email already registered.')
             return redirect(url_for('register'))
-
         user = User(username=username, email=email, password_hash=password)
         db.session.add(user)
         db.session.commit()
@@ -109,27 +127,21 @@ def register():
         session['username'] = user.username
         flash('Registered successfully!')
         return redirect(url_for('home'))
-
     return render_template('register.html')
 
-
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
-
-        if user and check_password_hash(user.password_hash, password):
+        if user and check_password_hash(user.password_hash,password):
             session['user_id'] = user.id
             session['username'] = user.username
             flash('Logged in successfully!')
             return redirect(url_for('home'))
-
         flash('Invalid credentials')
-
     return render_template('login.html')
-
 
 @app.route('/logout')
 def logout():
@@ -137,14 +149,13 @@ def logout():
     flash('Logged out successfully!')
     return redirect(url_for('home'))
 
-
 # ------------------ Create Plate ------------------
-@app.route('/create_plate', methods=['GET', 'POST'])
+@app.route('/create_plate', methods=['GET','POST'])
 def create_plate():
-    if request.method == 'POST':
+    if request.method=='POST':
         user_id = session.get('user_id')
         if not user_id:
-            flash("You must be logged in to post a plate.", "error")
+            flash("You must be logged in.", "error")
             return redirect(url_for('login'))
 
         name = request.form.get('name')
@@ -157,13 +168,12 @@ def create_plate():
         restaurant_lon = request.form.get('restaurant_longitude')
 
         if not all([name, restaurant_name, restaurant_lat, restaurant_lon]):
-            flash("Please fill out all fields and select a restaurant.", "error")
+            flash("Please fill all fields and select a restaurant.", "error")
             return redirect(url_for('create_plate'))
 
         restaurant = Restaurant.query.filter_by(
             name=restaurant_name, latitude=restaurant_lat, longitude=restaurant_lon
         ).first()
-
         if not restaurant:
             restaurant = Restaurant(
                 name=restaurant_name,
@@ -198,81 +208,85 @@ def create_plate():
 
     return render_template('create_plate.html')
 
-
 # ------------------ Plate Actions ------------------
 @app.route('/plate/<int:plate_id>/like', methods=['POST'])
 def like_plate(plate_id):
     if 'user_id' not in session:
-        return jsonify({'error': 'not logged in'}), 403
-
+        return jsonify({'error':'not logged in'}),403
     user_id = session['user_id']
     existing = Like.query.filter_by(user_id=user_id, plate_id=plate_id).first()
-
     if existing:
         db.session.delete(existing)
     else:
         db.session.add(Like(user_id=user_id, plate_id=plate_id))
-
     db.session.commit()
     count = Like.query.filter_by(plate_id=plate_id).count()
-    return jsonify({'status': 'ok', 'like_count': count})
-
+    return jsonify({'status':'ok','like_count':count})
 
 @app.route('/plate/<int:plate_id>/comment', methods=['POST'])
 def comment_plate(plate_id):
     if 'user_id' not in session:
-        return jsonify({'error': 'not logged in'}), 403
-
-    text = request.form.get('text', '').strip()
+        return jsonify({'error':'not logged in'}),403
+    text = request.form.get('text','').strip()
     if not text:
-        return jsonify({'status': 'error', 'message': 'Comment cannot be empty'}), 400
-
+        return jsonify({'status':'error','message':'Comment cannot be empty'}),400
     comment = Comment(user_id=session['user_id'], plate_id=plate_id, text=text)
     db.session.add(comment)
     db.session.commit()
-
-    return jsonify({'status': 'ok', 'username': session['username'], 'text': text})
-
+    return jsonify({'status':'ok','username':session['username'],'text':text})
 
 # ------------------ Nearby Restaurants ------------------
 @app.route('/nearby_restaurants')
 def nearby_restaurants():
+    """
+    Returns nearby restaurants as JSON based on location (zip code or city,state)
+    or latitude/longitude. Supports a radius in miles.
+    """
+    # Get query parameters
+    radius_miles = request.args.get('radius', 10)  # default 10 miles
+    try:
+        radius_miles = float(radius_miles)
+    except ValueError:
+        return jsonify({'restaurants': [], 'error': 'Invalid radius'}), 400
+
+    radius_meters = int(radius_miles * 1609.34)  # convert miles to meters
+
     lat = request.args.get('lat')
     lon = request.args.get('lon')
+    location_query = request.args.get('location')  # zip or city,state
+
+    # Geocode if location provided
+    if location_query and (not lat or not lon):
+        location_query += ", USA"  # restrict to US
+        geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json?address={location_query}&key={GOOGLE_PLACES_API_KEY}"
+        geo_resp = requests.get(geocode_url).json()
+        if geo_resp.get('status') != 'OK' or not geo_resp.get('results'):
+            return jsonify({'restaurants': [], 'error': f"Location '{location_query}' not found."}), 400
+        loc = geo_resp['results'][0]['geometry']['location']
+        lat = loc['lat']
+        lon = loc['lng']
 
     if not lat or not lon:
-        return jsonify({'restaurants': [], 'error': 'Missing coordinates'}), 400
+        return jsonify({'restaurants': [], 'error': 'Missing coordinates or location'}), 400
 
-    radius_meters = 16000  # 10 miles
-    url = (
+    # Call Google Places Nearby Search API
+    places_url = (
         f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?"
         f"location={lat},{lon}&radius={radius_meters}&type=restaurant&key={GOOGLE_PLACES_API_KEY}"
     )
-    response = requests.get(url).json()
-
+    resp = requests.get(places_url).json()
     restaurants = []
-    if response.get('status') == 'OK':
-        for res in response.get('results', []):
-            place_id = res.get('place_id')
-            website = ''
 
-            if place_id:
-                details_url = (
-                    f"https://maps.googleapis.com/maps/api/place/details/json?"
-                    f"place_id={place_id}&fields=website&key={GOOGLE_PLACES_API_KEY}"
-                )
-                details_resp = requests.get(details_url).json()
-                website = details_resp.get('result', {}).get('website', '')
-
+    if resp.get('status') == 'OK':
+        for r in resp.get('results', []):
             restaurants.append({
-                "name": res.get('name'),
-                "latitude": res['geometry']['location']['lat'],
-                "longitude": res['geometry']['location']['lng'],
-                "address": res.get('vicinity'),
-                "website": website
+                "name": r.get('name'),
+                "latitude": r['geometry']['location']['lat'],
+                "longitude": r['geometry']['location']['lng'],
+                "address": r.get('vicinity', ''),
             })
 
-    return jsonify({'restaurants': restaurants})
+    return jsonify({'restaurants': restaurants, 'lat': float(lat), 'lon': float(lon)})
 
 
 # ------------------ Run App ------------------

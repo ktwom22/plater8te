@@ -36,81 +36,113 @@
         <!-- Restaurant Selection -->
         <div class="mb-3">
             <label class="form-label">Select Restaurant</label>
-            <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#restaurantModal">
-                Choose Restaurant
-            </button>
-            <input type="hidden" name="restaurant_name" id="restaurant_name" required>
-            <input type="hidden" name="restaurant_address" id="restaurant_address" required>
-            <input type="hidden" name="restaurant_latitude" id="restaurant_latitude" required>
-            <input type="hidden" name="restaurant_longitude" id="restaurant_longitude" required>
-            <p class="mt-2" id="selected-restaurant" class="text-muted"></p>
+            <div class="d-flex gap-2 mb-2">
+                <button type="button" class="btn btn-outline-primary flex-grow-1" onclick="useNearby()">Nearby Restaurants</button>
+                <button type="button" class="btn btn-outline-secondary flex-grow-1" onclick="useLocationInput()">Search by Zip or City, State</button>
+            </div>
+
+            <!-- Zip/City input -->
+            <div id="location-section" class="mb-2" style="display:none;">
+                <input type="text" id="location-input" class="form-control mb-2" placeholder="Enter zip code or city, state">
+                <button type="button" class="btn btn-sm btn-primary mb-2" onclick="fetchRestaurants()">Search</button>
+            </div>
+
+            <!-- Restaurant selection list -->
+            <select class="form-select mb-2" id="restaurant-list" required>
+                <option value="">Select a restaurant</option>
+            </select>
+
+            <p id="selected-restaurant" class="text-muted"></p>
+
+            <!-- Hidden inputs for submission -->
+            <input type="hidden" name="restaurant_name" id="restaurant_name">
+            <input type="hidden" name="restaurant_address" id="restaurant_address">
+            <input type="hidden" name="restaurant_latitude" id="restaurant_latitude">
+            <input type="hidden" name="restaurant_longitude" id="restaurant_longitude">
         </div>
 
         <button type="submit" class="btn btn-success w-100">Post Plate</button>
     </form>
 </div>
-
-<!-- Restaurant Modal -->
-<div class="modal fade" id="restaurantModal" tabindex="-1" aria-labelledby="restaurantModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Select Restaurant</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="restaurant-search" class="form-control mb-3" placeholder="Search nearby restaurants...">
-        <div id="restaurant-results" class="list-group"></div>
-      </div>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let lat, lon;
+let lat, lon;
+let useNearbyFlag = false;
 
-    // Get user location
+function useNearby() {
+    useNearbyFlag = true;
+    document.getElementById('location-section').style.display = 'none';
+    document.getElementById('restaurant-list').innerHTML = '<option value="">Loading nearby restaurants...</option>';
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(position) {
             lat = position.coords.latitude;
             lon = position.coords.longitude;
-            fetchRestaurants('');
+            fetchRestaurants();
+        }, function() {
+            alert('Unable to get your location.');
         });
+    } else {
+        alert('Geolocation is not supported by your browser.');
+    }
+}
+
+function useLocationInput() {
+    useNearbyFlag = false;
+    document.getElementById('location-section').style.display = 'block';
+    document.getElementById('restaurant-list').innerHTML = '<option value="">Select a restaurant</option>';
+}
+
+function fetchRestaurants() {
+    let url = '/nearby_restaurants';
+    if (!useNearbyFlag) {
+        const loc = document.getElementById('location-input').value.trim();
+        if (!loc) {
+            alert('Please enter a zip code or city, state.');
+            return;
+        }
+        url += `?location=${encodeURIComponent(loc)}`;
+    } else {
+        url += `?lat=${lat}&lon=${lon}`;
     }
 
-    // Fetch nearby restaurants
-    function fetchRestaurants(query) {
-        fetch(`/nearby_restaurants?lat=${lat}&lon=${lon}`)
-            .then(res => res.json())
-            .then(data => {
-                const list = document.getElementById('restaurant-results');
-                list.innerHTML = '';
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            const select = document.getElementById('restaurant-list');
+            select.innerHTML = '<option value="">Select a restaurant</option>';
+
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            if (data.restaurants && data.restaurants.length > 0) {
                 data.restaurants.forEach(r => {
-                    if(query && !r.name.toLowerCase().includes(query.toLowerCase())) return;
-                    const item = document.createElement('button');
-                    item.className = 'list-group-item list-group-item-action';
-                    item.innerHTML = `<strong>${r.name}</strong><br><small>${r.address}</small>`;
-                    item.addEventListener('click', function() {
-                        document.getElementById('restaurant_name').value = r.name;
-                        document.getElementById('restaurant_address').value = r.address;
-                        document.getElementById('restaurant_latitude').value = r.latitude;
-                        document.getElementById('restaurant_longitude').value = r.longitude;
-                        document.getElementById('selected-restaurant').innerHTML = `Selected: <strong>${r.name}</strong>`;
-                        var modal = bootstrap.Modal.getInstance(document.getElementById('restaurantModal'));
-                        modal.hide();
-                    });
-                    list.appendChild(item);
+                    const option = document.createElement('option');
+                    option.value = JSON.stringify(r); // store full object
+                    option.textContent = `${r.name} (${r.address})`;
+                    select.appendChild(option);
                 });
-            });
-    }
+            } else {
+                alert('No restaurants found.');
+            }
+        });
+}
 
-    // Filter restaurants by search
-    document.getElementById('restaurant-search').addEventListener('input', function(){
-        fetchRestaurants(this.value);
-    });
+// Update hidden fields when restaurant selected
+document.getElementById('restaurant-list').addEventListener('change', function() {
+    const selected = this.value;
+    if (!selected) return;
+
+    const r = JSON.parse(selected);
+    document.getElementById('restaurant_name').value = r.name;
+    document.getElementById('restaurant_address').value = r.address;
+    document.getElementById('restaurant_latitude').value = r.latitude;
+    document.getElementById('restaurant_longitude').value = r.longitude;
+    document.getElementById('selected-restaurant').textContent = `Selected: ${r.name}`;
 });
 </script>
 {% endblock %}
