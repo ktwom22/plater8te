@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Rate Plate{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <h2 class="text-center mb-3">Rate "{{ plate.name }}"</h2>
+    <form method="POST" class="mx-auto" style="max-width: 500px;">
+        <div class="mb-3">
+            <label for="rating" class="form-label">Your rating (1-5):</label>
+            <input type="number" name="rating" id="rating" min="1" max="5" value="{{ user_plate.rated or '' }}" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Add a description:</label>
+            <textarea name="description" id="description" class="form-control" rows="3">{{ user_plate.description or '' }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-success w-100">Submit</button>
+    </form>
+</div>
+{% endblock %}
