@@ -11,16 +11,37 @@
             {% for plate in plates %}
                 <div class="col">
                     <div class="card h-100 shadow-sm">
+
+                        <!-- Plate Image -->
                         {% if plate.image_url %}
-                        <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
+                        <img src="{{ plate.image_url }}"
+                             class="card-img-top"
+                             alt="{{ plate.name }}"
+                             style="height: 220px; object-fit: cover;">
                         {% endif %}
+
                         <div class="card-body">
                             <h5 class="card-title">{{ plate.name }}</h5>
-                            <p class="card-text">{{ plate.description or "No description yet." }}</p>
+
+                            <!-- Restaurant name -->
+                            {% if plate.restaurant %}
+                                <p class="text-muted mb-2">
+                                    <strong>Restaurant:</strong> {{ plate.restaurant.name }}
+                                </p>
+                            {% endif %}
+
+                            <p class="card-text">
+                                {{ plate.description or "No description yet." }}
+                            </p>
                         </div>
+
                         <div class="card-footer text-center">
-                            <a href="{{ url_for('rate_plate', plate_id=plate.id) }}" class="btn btn-primary">Rate this Plate</a>
+                            <a href="{{ url_for('rate_plate', plate_id=plate.id) }}"
+                               class="btn btn-primary w-100">
+                               Rate this Plate
+                            </a>
                         </div>
+
                     </div>
                 </div>
             {% endfor %}

@@ -20,7 +20,7 @@
             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
         </div>
 
-        <!-- ✔ FIXED: Category Dropdown -->
+        <!-- Category Dropdown -->
         <div class="mb-3">
             <label for="category_id" class="form-label">Category</label>
             <select class="form-select" id="category_id" name="category_id" required>
@@ -31,10 +31,11 @@
             </select>
         </div>
 
-        <!-- Image Upload -->
+        <!-- Image Upload with Preview -->
         <div class="mb-3">
             <label for="image" class="form-label">Upload Image</label>
             <input class="form-control" type="file" id="image" name="image" accept="image/*">
+            <img id="image-preview" src="#" alt="Image Preview" class="mt-2" style="display:none; max-width:100%; height:auto; border-radius:8px;">
         </div>
 
         <!-- Restaurant Selection -->
@@ -76,6 +77,17 @@
 let lat, lon;
 let useNearbyFlag = false;
 
+// ----------------- Image Preview -----------------
+document.getElementById('image').addEventListener('change', function(event){
+    const [file] = this.files;
+    if(file){
+        const preview = document.getElementById('image-preview');
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = 'block';
+    }
+});
+
+// ----------------- Restaurant Selection -----------------
 function useNearby() {
     useNearbyFlag = true;
     document.getElementById('location-section').style.display = 'none';

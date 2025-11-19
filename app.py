@@ -9,6 +9,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import requests
 from dotenv import load_dotenv
+from PIL import Image, ExifTags
 
 load_dotenv()
 
@@ -20,11 +21,12 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '').strip()
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 # ------------------ Models ------------------
 class User(db.Model):
@@ -82,15 +84,46 @@ class UserPlate(db.Model):
     plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"))
     favorite = db.Column(db.Boolean, default=False)
     description = db.Column(db.Text, nullable=True)
-    rated = db.Column(db.Integer, default=0)  # 0 = unrated
+    rated = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ------------------ Helpers ------------------
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def fix_orientation(img):
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+        exif = img._getexif()
+        if exif is not None:
+            exif = dict(exif.items())
+            if exif.get(orientation) == 3:
+                img = img.rotate(180, expand=True)
+            elif exif.get(orientation) == 6:
+                img = img.rotate(270, expand=True)
+            elif exif.get(orientation) == 8:
+                img = img.rotate(90, expand=True)
+    except:
+        pass
+    return img
+
+def process_uploaded_image(file, filename):
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+    file.save(filepath)
+    try:
+        with Image.open(filepath) as img:
+            img = fix_orientation(img)
+            img = img.convert("RGB")
+            img.thumbnail((1600, 1600), Image.LANCZOS)
+            img.save(filepath, optimize=True, quality=85)
+    except Exception as e:
+        print("Image processing error:", e)
+    return f"static/uploads/{filename}"
+
 def haversine(lat1, lon1, lat2, lon2):
-    R = 3956  # miles
+    R = 3956
     dlat = radians(lat2 - lat1)
     dlon = radians(lon2 - lon1)
     a = sin(dlat/2)**2 + cos(radians(lat1))*cos(radians(lat2))*sin(dlon/2)**2
@@ -114,7 +147,7 @@ def geocode_location(query):
     try:
         url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(q)}"
         r = requests.get(url, headers={'User-Agent':'plater8te-app/1.0'}, timeout=6).json()
-        if r and isinstance(r, list) and len(r)>0:
+        if r and isinstance(r, list) and len(r) > 0:
             return float(r[0]['lat']), float(r[0]['lon'])
     except:
         pass
@@ -131,7 +164,7 @@ def seed_default_categories():
     db.session.commit()
 
 def schedule_email_for_rating(plate_id, user_id):
-    pass  # placeholder
+    pass
 
 # ------------------ Routes ------------------
 @app.route('/')
@@ -156,7 +189,7 @@ def home():
         else:
             lat, lon = float(lat), float(lon)
         radius_miles = radius_miles or 100
-        plates = [p for p in plates if p.restaurant and p.restaurant.latitude and p.restaurant.longitude and haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude)<=radius_miles]
+        plates = [p for p in plates if p.restaurant and p.restaurant.latitude and haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude)<=radius_miles]
 
     return render_template('home.html', plates=plates, categories=Category.query.order_by(Category.name).all())
 
@@ -202,7 +235,7 @@ def logout():
     flash('Logged out successfully!','success')
     return redirect(url_for('home'))
 
-# ------------------ Create Plate ------------------
+# ------------------ Plate Creation ------------------
 @app.route('/create_plate', methods=['GET','POST'])
 def create_plate():
     if 'user_id' not in session:
@@ -232,16 +265,13 @@ def create_plate():
 
         file = request.files.get('image')
         if file and allowed_file(file.filename):
-            ext = os.path.splitext(file.filename)[1]
+            ext = os.path.splitext(file.filename)[1].lower()
             filename = f"{uuid.uuid4().hex}{ext}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
-            file.save(filepath)
-            plate.image_url=f"static/uploads/{filename}"
+            plate.image_url = process_uploaded_image(file, filename)
 
         db.session.add(plate)
         db.session.commit()
 
-        # Track creator
         user_plate = UserPlate(user_id=user_id, plate_id=plate.id)
         db.session.add(user_plate)
         db.session.commit()
@@ -253,6 +283,7 @@ def create_plate():
     categories = Category.query.all()
     return render_template('create_plate.html', categories=categories)
 
+# ------------------ Nearby Restaurants ------------------
 @app.route('/nearby_restaurants')
 def nearby_restaurants():
     """
@@ -391,26 +422,56 @@ def unrated_plates():
     if 'user_id' not in session:
         flash("Login required","error")
         return redirect(url_for('login'))
+
     user_id = session['user_id']
-    unrated = UserPlate.query.filter_by(user_id=user_id, rated=0).all()
-    return render_template("unrated_plates.html", plates=unrated)
+
+    # Get unrated user_plate entries with eager-loaded Plate + Restaurant
+    unrated_entries = (
+        UserPlate.query
+        .filter_by(user_id=user_id, rated=0)
+        .join(UserPlate.plate)
+        .options(
+            db.joinedload(UserPlate.plate).joinedload(Plate.restaurant)
+        )
+        .all()
+    )
+
+    # Extract the actual Plate objects
+    plates = [entry.plate for entry in unrated_entries]
+
+    return render_template("unrated_plates.html", plates=plates)
+
 
 @app.route("/rate_plate/<int:plate_id>", methods=["GET", "POST"])
 def rate_plate(plate_id):
     if 'user_id' not in session:
-        flash("Login required","error")
+        flash("Login required", "error")
         return redirect(url_for('login'))
+
     user_id = session['user_id']
-    plate = Plate.query.get_or_404(plate_id)
+
+    # Load plate + restaurant fully
+    plate = (
+        Plate.query
+            .options(db.joinedload(Plate.restaurant))
+            .get_or_404(plate_id)
+    )
+
+    # UserPlate entry for this user + plate
     user_plate = UserPlate.query.filter_by(user_id=user_id, plate_id=plate_id).first()
+
     if request.method == "POST":
         rating = int(request.form["rating"])
         description = request.form.get("description", "").strip()
+
         user_plate.rated = rating
         user_plate.description = description
         db.session.commit()
+
         return redirect(url_for("unrated_plates"))
+
     return render_template("rate_plate.html", plate=plate, user_plate=user_plate)
+
 
 # ------------------ App Startup ------------------
 if __name__ == '__main__':

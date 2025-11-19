@@ -6,7 +6,7 @@
 <div class="container my-4 text-center">
     <h1 class="mb-4">Play: Rate the Plate</h1>
 
-    <div id="game-container" style="position: relative; height: 400px;">
+    <div id="game-container" style="position: relative;">
         <!-- Plate cards will appear here -->
     </div>
 
@@ -36,25 +36,34 @@ function showPlate(index) {
 
     const plate = plates[index];
     const card = document.createElement('div');
-    card.className = 'card shadow-sm';
-    card.style.position = 'absolute';
+    card.className = 'card shadow-sm mx-auto mb-4';
     card.style.width = '100%';
-    card.style.height = '100%';
+    card.style.maxWidth = '400px';      // limit width like a post
     card.style.borderRadius = '16px';
     card.style.overflow = 'hidden';
     card.style.touchAction = 'none';
     card.style.userSelect = 'none';
 
-    card.innerHTML = `
-        <img src="${plate.image_url}" class="card-img-top" style="height: 100%; object-fit: cover;">
-        <div class="card-body bg-light">
-            <h5 class="card-title">${plate.name} (${plate.rating}/5)</h5>
-            <p class="card-text">${plate.description}</p>
-            <small class="text-muted">${plate.restaurant ? plate.restaurant.name : 'Unknown restaurant'}</small>
-        </div>
+    // Image
+    const img = document.createElement('img');
+    img.src = plate.image_url;
+    img.style.width = '100%';
+    img.style.height = 'auto';
+    img.style.display = 'block';
+
+    // Card body
+    const body = document.createElement('div');
+    body.className = 'card-body bg-light';
+    body.innerHTML = `
+        <h5 class="card-title">${plate.name} (${plate.rating}/5)</h5>
+        <p class="card-text">${plate.description || ''}</p>
+        <small class="text-muted">${plate.restaurant ? plate.restaurant.name : 'Unknown restaurant'}</small>
     `;
 
-    // touch/swipe
+    card.appendChild(img);
+    card.appendChild(body);
+
+    // swipe detection
     let startX, startY;
     card.addEventListener('touchstart', e => {
         startX = e.touches[0].clientX;
@@ -62,16 +71,14 @@ function showPlate(index) {
     });
 
     card.addEventListener('touchend', e => {
-        const endX = e.changedTouches[0].clientX;
-        const endY = e.changedTouches[0].clientY;
-        const dx = endX - startX;
-        const dy = endY - startY;
+        const dx = e.changedTouches[0].clientX - startX;
+        const dy = e.changedTouches[0].clientY - startY;
 
-        if(Math.abs(dx) > Math.abs(dy)){ // horizontal swipe
+        if(Math.abs(dx) > Math.abs(dy)){
             if(dx > 50) swipe('right');
             else if(dx < -50) swipe('left');
-        } else { // vertical swipe
-            if(dy < -50) swipe('up'); // swipe up
+        } else {
+            if(dy < -50) swipe('up');
         }
     });
 

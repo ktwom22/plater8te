@@ -5,10 +5,26 @@
 {% block content %}
 <div class="container my-4">
     <h2 class="text-center mb-3">Rate "{{ plate.name }}"</h2>
+
+    {% if plate.image_url %}
+    <div class="text-center mb-3">
+        <img src="{{ url_for('static', filename=plate.image_url.split('static/')[1]) }}"
+             class="img-fluid rounded shadow-sm" style="max-height: 400px; object-fit: cover;"
+             alt="{{ plate.name }}">
+    </div>
+    {% endif %}
+
+    {% if plate.restaurant %}
+    <p class="text-center text-muted mb-4">
+        📍 {{ plate.restaurant.name }}{% if plate.restaurant.address %} - {{ plate.restaurant.address }}{% endif %}
+    </p>
+    {% endif %}
+
     <form method="POST" class="mx-auto" style="max-width: 500px;">
         <div class="mb-3">
             <label for="rating" class="form-label">Your rating (1-5):</label>
-            <input type="number" name="rating" id="rating" min="1" max="5" value="{{ user_plate.rated or '' }}" class="form-control" required>
+            <input type="number" name="rating" id="rating" min="1" max="5"
+                   value="{{ user_plate.rated or '' }}" class="form-control" required>
         </div>
         <div class="mb-3">
             <label for="description" class="form-label">Add a description:</label>
