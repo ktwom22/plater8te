@@ -2,34 +2,70 @@
 
 {% block title %}Rate Plate{% endblock %}
 
+{% block head %}
+<style>
+/* --- STAR RATING (interactive) --- */
+.star-rating {
+    direction: rtl;
+    font-size: 2rem;
+    unicode-bidi: bidi-override;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+.star-rating input[type="radio"] {
+    display: none;
+}
+.star-rating label {
+    color: #ddd;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.star-rating input[type="radio"]:checked ~ label,
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+    color: #ffc107;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container my-4">
     <h2 class="text-center mb-3">Rate "{{ plate.name }}"</h2>
 
-    {% if plate.image_url %}
-    <div class="text-center mb-3">
-        <img src="{{ url_for('static', filename=plate.image_url.split('static/')[1]) }}"
-             class="img-fluid rounded shadow-sm" style="max-height: 400px; object-fit: cover;"
-             alt="{{ plate.name }}">
+    <!-- Plate info -->
+    <div class="card mb-4 shadow-sm mx-auto" style="max-width: 500px;">
+        {% if plate.image_url %}
+            <img src="/{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
+        {% endif %}
+        <div class="card-body">
+            <h5 class="card-title">{{ plate.name }}</h5>
+            <p class="card-text">{{ plate.description or "No description yet." }}</p>
+            {% if plate.restaurant %}
+                <p class="text-muted mb-0">{{ plate.restaurant.name }}</p>
+                <small class="text-muted">{{ plate.restaurant.address }}</small>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
-
-    {% if plate.restaurant %}
-    <p class="text-center text-muted mb-4">
-        📍 {{ plate.restaurant.name }}{% if plate.restaurant.address %} - {{ plate.restaurant.address }}{% endif %}
-    </p>
-    {% endif %}
 
     <form method="POST" class="mx-auto" style="max-width: 500px;">
+
+        <!-- Interactive Star Rating -->
         <div class="mb-3">
-            <label for="rating" class="form-label">Your rating (1-5):</label>
-            <input type="number" name="rating" id="rating" min="1" max="5"
-                   value="{{ user_plate.rated or '' }}" class="form-control" required>
+            <label class="form-label">Your rating:</label>
+            <div class="star-rating">
+                {% for i in range(5, 0, -1) %}
+                    <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}" {% if user_plate.rated == i %}checked{% endif %}>
+                    <label for="star{{ i }}" title="{{ i }} stars">&#9733;</label>
+                {% endfor %}
+            </div>
         </div>
+
         <div class="mb-3">
             <label for="description" class="form-label">Add a description:</label>
             <textarea name="description" id="description" class="form-control" rows="3">{{ user_plate.description or '' }}</textarea>
         </div>
+
         <button type="submit" class="btn btn-success w-100">Submit</button>
     </form>
 </div>

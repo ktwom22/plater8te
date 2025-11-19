@@ -170,28 +170,42 @@ def schedule_email_for_rating(plate_id, user_id):
 @app.route('/')
 def home():
     category_id = request.args.get('category', type=int)
-    location_query = request.args.get('location','').strip()
+    location_query = request.args.get('location', '').strip()
     lat = request.args.get('lat')
     lon = request.args.get('lon')
     radius_miles = request.args.get('radius_miles', type=float)
 
+    # Base query
     plates_q = Plate.query.order_by(Plate.created_at.desc())
     if category_id:
-        plates_q = plates_q.filter(Plate.category_id==category_id)
+        plates_q = plates_q.filter(Plate.category_id == category_id)
     plates = plates_q.all()
 
+    # Compute average rating for each plate
+    for plate in plates:
+        ratings = [up.rated for up in plate.user_plates if up.rated]  # assumes backref 'user_plates'
+        plate.avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
+
+    # Filter by location if needed
     if (lat and lon) or location_query:
         if not (lat and lon):
             geolat, geolon = geocode_location(location_query)
             if geolat is None:
+                # Return unfiltered if location invalid
                 return render_template('home.html', plates=plates, categories=Category.query.order_by(Category.name).all())
             lat, lon = geolat, geolon
         else:
             lat, lon = float(lat), float(lon)
-        radius_miles = radius_miles or 100
-        plates = [p for p in plates if p.restaurant and p.restaurant.latitude and haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude)<=radius_miles]
 
-    return render_template('home.html', plates=plates, categories=Category.query.order_by(Category.name).all())
+        radius_miles = radius_miles or 100
+        plates = [
+            p for p in plates
+            if p.restaurant and p.restaurant.latitude and p.restaurant.longitude and
+               haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
+        ]
+
+    categories = Category.query.order_by(Category.name).all()
+    return render_template('home.html', plates=plates, categories=categories)
 
 # ------------------ Auth ------------------
 @app.route('/register', methods=['GET','POST'])
