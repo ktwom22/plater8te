@@ -7,22 +7,28 @@
     <h1 class="text-center mb-4">Post a Plate</h1>
 
     <form method="POST" enctype="multipart/form-data" id="plate-form">
+
         <!-- Plate Name -->
         <div class="mb-3">
             <label for="name" class="form-label">Plate Name</label>
-            <input type="text" class="form-control" id="name" name="name" placeholder="e.g., Spicy Ramen" required>
+            <input type="text" class="form-control" id="name" name="name" required>
         </div>
 
-        <!-- Optional Description -->
+        <!-- Description -->
         <div class="mb-3">
             <label for="description" class="form-label">Description (Optional)</label>
-            <textarea class="form-control" id="description" name="description" rows="3" placeholder="You can add a description later..."></textarea>
+            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
         </div>
 
-        <!-- Category -->
+        <!-- ✔ FIXED: Category Dropdown -->
         <div class="mb-3">
-            <label for="category" class="form-label">Category</label>
-            <input type="text" class="form-control" id="category" name="category" placeholder="e.g., Japanese, Dessert" required>
+            <label for="category_id" class="form-label">Category</label>
+            <select class="form-select" id="category_id" name="category_id" required>
+                <option value="">Select Category</option>
+                {% for c in categories %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
         </div>
 
         <!-- Image Upload -->
@@ -34,25 +40,26 @@
         <!-- Restaurant Selection -->
         <div class="mb-3">
             <label class="form-label">Select Restaurant</label>
+
             <div class="d-flex flex-column flex-sm-row gap-2 mb-2">
                 <button type="button" class="btn btn-outline-primary flex-grow-1" onclick="useNearby()">Nearby Restaurants</button>
-                <button type="button" class="btn btn-outline-secondary flex-grow-1" onclick="useLocationInput()">Search by Zip or City, State</button>
+                <button type="button" class="btn btn-outline-secondary flex-grow-1" onclick="useLocationInput()">Search by Zip or City</button>
             </div>
 
-            <!-- Zip/City input -->
+            <!-- Search box -->
             <div id="location-section" class="mb-2" style="display:none;">
-                <input type="text" id="location-input" class="form-control mb-2" placeholder="Enter zip code or city, state">
+                <input type="text" id="location-input" class="form-control mb-2" placeholder="Enter zip code or city">
                 <button type="button" class="btn btn-primary w-100 mb-2" onclick="fetchRestaurants()">Search</button>
             </div>
 
-            <!-- Restaurant select -->
+            <!-- Restaurant list -->
             <select class="form-select mb-2" id="restaurant-list" required>
                 <option value="">Select a restaurant</option>
             </select>
 
             <p id="selected-restaurant" class="text-muted"></p>
 
-            <!-- Hidden inputs for submission -->
+            <!-- Hidden fields sent to backend -->
             <input type="hidden" name="restaurant_name" id="restaurant_name">
             <input type="hidden" name="restaurant_address" id="restaurant_address">
             <input type="hidden" name="restaurant_latitude" id="restaurant_latitude">
@@ -75,15 +82,11 @@ function useNearby() {
     document.getElementById('restaurant-list').innerHTML = '<option>Loading nearby restaurants...</option>';
 
     if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            lat = position.coords.latitude;
-            lon = position.coords.longitude;
+        navigator.geolocation.getCurrentPosition(pos => {
+            lat = pos.coords.latitude;
+            lon = pos.coords.longitude;
             fetchRestaurants();
-        }, function() {
-            alert('Unable to get your location.');
-        });
-    } else {
-        alert('Geolocation is not supported by your browser.');
+        }, () => alert('Unable to get your location.'));
     }
 }
 
@@ -95,9 +98,10 @@ function useLocationInput() {
 
 function fetchRestaurants() {
     let url = '/nearby_restaurants';
+
     if (!useNearbyFlag) {
         const loc = document.getElementById('location-input').value.trim();
-        if (!loc) { alert('Please enter a zip code or city, state.'); return; }
+        if (!loc) return alert('Please enter a location.');
         url += `?location=${encodeURIComponent(loc)}`;
     } else {
         url += `?lat=${lat}&lon=${lon}`;
@@ -109,24 +113,19 @@ function fetchRestaurants() {
             const select = document.getElementById('restaurant-list');
             select.innerHTML = '<option value="">Select a restaurant</option>';
 
-            if (data.error) { alert(data.error); return; }
+            if (data.error) return alert(data.error);
 
-            if (data.restaurants && data.restaurants.length > 0) {
-                data.restaurants.forEach(r => {
-                    const option = document.createElement('option');
-                    option.value = JSON.stringify(r);
-                    option.textContent = `${r.name} (${r.address})`;
-                    select.appendChild(option);
-                });
-            } else { alert('No restaurants found.'); }
+            data.restaurants.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify(r);
+                opt.textContent = `${r.name} (${r.address})`;
+                select.appendChild(opt);
+            });
         });
 }
 
-// Update hidden fields on selection
 document.getElementById('restaurant-list').addEventListener('change', function() {
-    const selected = this.value;
-    if (!selected) return;
-    const r = JSON.parse(selected);
+    const r = JSON.parse(this.value);
     document.getElementById('restaurant_name').value = r.name;
     document.getElementById('restaurant_address').value = r.address;
     document.getElementById('restaurant_latitude').value = r.latitude;
