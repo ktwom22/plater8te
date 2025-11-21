@@ -47,6 +47,8 @@ class Restaurant(db.Model):
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     plates = db.relationship('Plate', backref='restaurant', lazy=True)
+    website = db.Column(db.String(255))  # <--- ADD THIS
+
 
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -166,6 +168,24 @@ def seed_default_categories():
 def schedule_email_for_rating(plate_id, user_id):
     pass
 
+def get_place_details(place_id):
+    api_key = YOUR_GOOGLE_API_KEY
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/details/json?"
+        f"place_id={place_id}&fields=name,formatted_address,website&key={api_key}"
+    )
+
+    response = requests.get(url).json()
+
+    if response.get("status") == "OK":
+        result = response.get("result", {})
+        return {
+            "name": result.get("name"),
+            "address": result.get("formatted_address"),
+            "website": result.get("website")
+        }
+
+    return {}
 # ------------------ Routes ------------------
 @app.route('/')
 def home():
@@ -175,37 +195,51 @@ def home():
     lon = request.args.get('lon')
     radius_miles = request.args.get('radius_miles', type=float)
 
-    # Base query
+    # Base plate query
     plates_q = Plate.query.order_by(Plate.created_at.desc())
     if category_id:
         plates_q = plates_q.filter(Plate.category_id == category_id)
+
     plates = plates_q.all()
 
-    # Compute average rating for each plate
+    # Compute average rating per plate
     for plate in plates:
-        ratings = [up.rated for up in plate.user_plates if up.rated]  # assumes backref 'user_plates'
+        ratings = [up.rated for up in plate.user_plates if up.rated]
         plate.avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
 
-    # Filter by location if needed
+        # 🔍 DEBUG: Print restaurant website values to console
+        if plate.restaurant:
+            print(
+                "Restaurant:",
+                plate.restaurant.name,
+                "| Website:",
+                plate.restaurant.website
+            )
+
+    # Location filtering
     if (lat and lon) or location_query:
         if not (lat and lon):
             geolat, geolon = geocode_location(location_query)
             if geolat is None:
-                # Return unfiltered if location invalid
-                return render_template('home.html', plates=plates, categories=Category.query.order_by(Category.name).all())
+                categories = Category.query.order_by(Category.name).all()
+                return render_template('home.html', plates=plates, categories=categories)
             lat, lon = geolat, geolon
         else:
             lat, lon = float(lat), float(lon)
 
         radius_miles = radius_miles or 100
+
         plates = [
             p for p in plates
-            if p.restaurant and p.restaurant.latitude and p.restaurant.longitude and
-               haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
+            if p.restaurant
+            and p.restaurant.latitude
+            and p.restaurant.longitude
+            and haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
         ]
 
     categories = Category.query.order_by(Category.name).all()
     return render_template('home.html', plates=plates, categories=categories)
+
 
 # ------------------ Auth ------------------
 @app.route('/register', methods=['GET','POST'])
@@ -302,54 +336,81 @@ def create_plate():
 def nearby_restaurants():
     """
     Return nearby restaurants based on lat/lon or location query.
-    If GOOGLE_PLACES_API_KEY is set, use Google Places API.
-    Otherwise, use local database with Haversine distance.
+    Uses Google Places API if GOOGLE_PLACES_API_KEY is set, otherwise local DB with Haversine distance.
     """
     try:
-        # Get query params
-        radius_meters = float(request.args.get('radius', 16000))  # default 10 miles
+        # --- Query params ---
+        radius_meters = float(request.args.get('radius', 16000))  # default ~10 miles
         lat = request.args.get('lat', type=float)
         lon = request.args.get('lon', type=float)
         location = request.args.get('location', '').strip()
 
-        # Geocode if location provided but no coordinates
+        # --- Geocode if location provided but no coordinates ---
         if location and (lat is None or lon is None):
             lat, lon = geocode_location(location)
             if lat is None or lon is None:
-                return jsonify({
-                    'restaurants': [],
-                    'error': f"Could not find location '{location}'"
-                }), 400
+                return jsonify({'restaurants': [], 'error': f"Could not find location '{location}'"}), 400
 
-        # Ensure coordinates are present
+        # --- Ensure coordinates are present ---
         if lat is None or lon is None:
-            return jsonify({
-                'restaurants': [],
-                'error': 'Missing latitude/longitude or location query'
-            }), 400
+            return jsonify({'restaurants': [], 'error': 'Missing latitude/longitude or location query'}), 400
 
         restaurants = []
 
-        # Use Google Places API if available
+        # --- Google Places API ---
         if GOOGLE_PLACES_API_KEY:
-            url = (
-                f"https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-                f"?location={lat},{lon}&radius={int(radius_meters)}&type=restaurant&key={GOOGLE_PLACES_API_KEY}"
-            )
-            resp = requests.get(url, timeout=6).json()
-            if resp.get('status') == 'OK':
+            next_page_token = None
+            while True:
+                url = (
+                    "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+                    f"?location={lat},{lon}&radius={int(radius_meters)}&type=restaurant&key={GOOGLE_PLACES_API_KEY}"
+                )
+                if next_page_token:
+                    url += f"&pagetoken={next_page_token}"
+                    # Google requires a short delay before using next_page_token
+                    import time
+                    time.sleep(2)
+
+                resp = requests.get(url, timeout=6).json()
+                if resp.get('status') not in ('OK', 'ZERO_RESULTS'):
+                    break
+
                 for r in resp.get('results', []):
                     loc = r['geometry']['location']
+                    place_id = r.get('place_id')
+                    website = None
+                    # Fetch website via place details
+                    if place_id:
+                        try:
+                            details_url = (
+                                f"https://maps.googleapis.com/maps/api/place/details/json"
+                                f"?place_id={place_id}&fields=name,formatted_address,website&key={GOOGLE_PLACES_API_KEY}"
+                            )
+                            details = requests.get(details_url, timeout=6).json()
+                            if details.get("status") == "OK":
+                                website = details.get("result", {}).get("website")
+                        except:
+                            pass
+
                     restaurants.append({
-                        "name": r.get('name'),
-                        "latitude": loc.get('lat'),
-                        "longitude": loc.get('lng'),
-                        "address": r.get('vicinity', '')
+                        "name": r.get("name"),
+                        "latitude": loc.get("lat"),
+                        "longitude": loc.get("lng"),
+                        "address": r.get("vicinity", ""),
+                        "website": website or ""
                     })
+
+                next_page_token = resp.get("next_page_token")
+                if not next_page_token:
+                    break
+
         else:
-            # Fallback: use local DB
-            radius_miles = radius_meters / 1609.34  # convert meters to miles
-            all_restaurants = Restaurant.query.filter(Restaurant.latitude.isnot(None), Restaurant.longitude.isnot(None)).all()
+            # --- Fallback: local DB ---
+            radius_miles = radius_meters / 1609.34
+            all_restaurants = Restaurant.query.filter(
+                Restaurant.latitude.isnot(None),
+                Restaurant.longitude.isnot(None)
+            ).all()
             for r in all_restaurants:
                 dist = haversine(lat, lon, r.latitude, r.longitude)
                 if dist <= radius_miles:
@@ -357,7 +418,8 @@ def nearby_restaurants():
                         "name": r.name,
                         "latitude": r.latitude,
                         "longitude": r.longitude,
-                        "address": r.address or ''
+                        "address": r.address or "",
+                        "website": r.website or ""
                     })
 
         return jsonify({
@@ -368,7 +430,9 @@ def nearby_restaurants():
         })
 
     except Exception as e:
+        print("Nearby restaurants error:", e)
         return jsonify({'restaurants': [], 'error': 'Server error', 'detail': str(e)}), 500
+
 
 # ------------------ Play / Swipe ------------------
 @app.route('/play')
