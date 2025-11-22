@@ -43,15 +43,17 @@
             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
         </div>
 
-        <!-- --- Category Dropdown --- -->
-        <div class="mb-3">
+        <!-- --- Category Autocomplete --- -->
+        <div class="mb-3 position-relative">
             <label for="category_id" class="form-label">Category</label>
-            <select class="form-select" id="category_id" name="category_id" required>
+            <input type="text" id="category_search" class="form-control" placeholder="Start typing to search..." autocomplete="off" required>
+            <select id="category_id" name="category_id" class="form-select d-none">
                 <option value="">Select Category</option>
                 {% for c in categories %}
                     <option value="{{ c.id }}">{{ c.name }}</option>
                 {% endfor %}
             </select>
+            <ul id="category_suggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
         </div>
 
         <!-- --- Image Upload --- -->
@@ -65,7 +67,7 @@
     </form>
 </div>
 
-<!-- --- Modal --- -->
+<!-- --- Restaurant Modal --- -->
 <div class="modal fade" id="restaurantModal" tabindex="-1" aria-labelledby="restaurantModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -74,7 +76,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div id="restaurant-loading" class="text-center my-3">
+        <div id="restaurant-loading" class="text-center my-3 d-none">
           <div class="spinner-border text-primary" role="status"></div>
           <p>Loading nearby restaurants...</p>
         </div>
@@ -86,111 +88,154 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-let lat, lon;
-let useNearbyFlag = false;
+document.addEventListener('DOMContentLoaded', function() {
+    let lat, lon;
+    let useNearbyFlag = false;
 
-// --- Image Preview ---
-document.getElementById('image').addEventListener('change', function(event){
-    const [file] = this.files;
-    if(file){
-        const preview = document.getElementById('image-preview');
-        preview.src = URL.createObjectURL(file);
-        preview.style.display = 'block';
-    }
-});
+    // --- Image Preview ---
+    const imageInput = document.getElementById('image');
+    imageInput.addEventListener('change', function() {
+        const [file] = this.files;
+        if(file){
+            const preview = document.getElementById('image-preview');
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = 'block';
+        }
+    });
 
-// --- Restaurant Selection ---
-function useNearby() {
-    useNearbyFlag = true;
-    document.getElementById('location-section').style.display = 'none';
-    showModal();
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            lat = pos.coords.latitude;
-            lon = pos.coords.longitude;
-            fetchRestaurants();
-        }, () => alert('Unable to get your location.'));
-    }
-}
-
-function useLocationInput() {
-    useNearbyFlag = false;
-    document.getElementById('location-section').style.display = 'block';
-}
-
-// --- Modal Functions ---
-function showModal() {
-    const modal = new bootstrap.Modal(document.getElementById('restaurantModal'));
-    modal.show();
-}
-
-function hideModal() {
-    const modalEl = document.getElementById('restaurantModal');
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
-}
-
-// --- Fetch Restaurants ---
-function fetchRestaurants() {
-    let url = '/nearby_restaurants';
-    if (!useNearbyFlag) {
-        const loc = document.getElementById('location-input').value.trim();
-        if (!loc) return alert('Please enter a location.');
-        url += `?location=${encodeURIComponent(loc)}`;
+    // --- Restaurant Functions ---
+    window.useNearby = function() {
+        useNearbyFlag = true;
+        document.getElementById('location-section').style.display = 'none';
         showModal();
-    } else {
-        url += `?lat=${lat}&lon=${lon}`;
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                lat = pos.coords.latitude;
+                lon = pos.coords.longitude;
+                fetchRestaurants();
+            }, () => alert('Unable to get your location.'));
+        } else {
+            alert('Geolocation is not supported by this browser.');
+        }
+    };
+
+    window.useLocationInput = function() {
+        useNearbyFlag = false;
+        document.getElementById('location-section').style.display = 'block';
+    };
+
+    function showModal() {
+        const modal = new bootstrap.Modal(document.getElementById('restaurantModal'));
+        modal.show();
     }
 
-    // Show loading
-    document.getElementById('restaurant-loading').classList.remove('d-none');
-    document.getElementById('restaurant-list').classList.add('d-none');
-    document.getElementById('restaurant-list').innerHTML = '';
+    function hideModal() {
+        const modalEl = document.getElementById('restaurantModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+    }
 
-    fetch(url)
+    window.fetchRestaurants = function() {
+        const urlBase = '/nearby_restaurants';
+        let url = urlBase;
+        if (!useNearbyFlag) {
+            const loc = document.getElementById('location-input').value.trim();
+            if (!loc) return alert('Please enter a location.');
+            url += `?location=${encodeURIComponent(loc)}`;
+            showModal();
+        } else {
+            url += `?lat=${lat}&lon=${lon}`;
+        }
+
+        const loading = document.getElementById('restaurant-loading');
+        const listEl = document.getElementById('restaurant-list');
+        loading.classList.remove('d-none');
+        listEl.classList.add('d-none');
+        listEl.innerHTML = '';
+
+        fetch(url)
         .then(res => res.json())
         .then(data => {
-            document.getElementById('restaurant-loading').classList.add('d-none');
-            const list = document.getElementById('restaurant-list');
-            list.classList.remove('d-none');
+            loading.classList.add('d-none');
+            listEl.classList.remove('d-none');
+            listEl.innerHTML = '';
 
-            if (data.error) {
-                list.innerHTML = `<li class="list-group-item text-danger">${data.error}</li>`;
+            if(data.error) {
+                listEl.innerHTML = `<li class="list-group-item text-danger">${data.error}</li>`;
                 return;
             }
 
             data.restaurants.forEach(r => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item list-group-item-action';
-
-                // Extract domain from website
-                let websiteLink = '';
-                if (r.website) {
-                    try {
-                        const urlObj = new URL(r.website);
-                        websiteLink = `<a href="${r.website}" target="_blank">${urlObj.hostname.replace('www.','')}</a>`;
-                    } catch (e) {
-                        websiteLink = `<a href="${r.website}" target="_blank">Website</a>`;
-                    }
-                }
-
-                li.innerHTML = `<strong>${r.name}</strong><br>${r.address}${websiteLink ? '<br>' + websiteLink : ''}`;
                 li.style.cursor = 'pointer';
+                li.innerHTML = `<strong>${r.name}</strong><br>${r.address}`;
                 li.addEventListener('click', () => selectRestaurant(r));
-                list.appendChild(li);
+                listEl.appendChild(li);
             });
+        }).catch(err => {
+            loading.classList.add('d-none');
+            listEl.classList.remove('d-none');
+            listEl.innerHTML = `<li class="list-group-item text-danger">Error fetching restaurants</li>`;
+            console.error(err);
         });
-}
+    };
 
-function selectRestaurant(r) {
-    document.getElementById('restaurant_name').value = r.name;
-    document.getElementById('restaurant_address').value = r.address;
-    document.getElementById('restaurant_latitude').value = r.latitude;
-    document.getElementById('restaurant_longitude').value = r.longitude;
-    document.getElementById('selected-restaurant').textContent = `Selected: ${r.name}`;
-    hideModal();
-}
+    window.selectRestaurant = function(r) {
+        document.getElementById('restaurant_name').value = r.name;
+        document.getElementById('restaurant_address').value = r.address;
+        document.getElementById('restaurant_latitude').value = r.latitude;
+        document.getElementById('restaurant_longitude').value = r.longitude;
+        document.getElementById('selected-restaurant').textContent = `Selected: ${r.name}`;
+        hideModal();
+    };
+
+    // --- Category Autocomplete ---
+    const categoryInput = document.getElementById('category_search');
+    const categorySelect = document.getElementById('category_id');
+    const categorySuggestions = document.getElementById('category_suggestions');
+
+    const categoryMap = {};
+    Array.from(categorySelect.options).forEach(opt => {
+        if(opt.value) categoryMap[opt.text] = opt.value;
+    });
+
+    categoryInput.addEventListener('input', function() {
+        const value = this.value.toLowerCase();
+        categorySuggestions.innerHTML = '';
+
+        const matches = Object.keys(categoryMap).filter(name => name.toLowerCase().includes(value));
+        if(!matches.length) return categorySuggestions.style.display = 'none';
+
+        matches.forEach(name => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action';
+            li.style.cursor = 'pointer';
+
+            // Highlight matched text
+            const regex = new RegExp(`(${value})`, 'i');
+            li.innerHTML = name.replace(regex, '<mark>$1</mark>');
+
+            li.addEventListener('click', () => {
+                categoryInput.value = name;
+                categorySelect.value = categoryMap[name];
+                categorySuggestions.style.display = 'none';
+            });
+            categorySuggestions.appendChild(li);
+        });
+
+        categorySuggestions.style.display = 'block';
+        categorySuggestions.firstChild.scrollIntoView({block:"nearest"});
+    });
+
+    document.addEventListener('click', e => {
+        if(!categoryInput.contains(e.target) && !categorySuggestions.contains(e.target)) {
+            categorySuggestions.style.display = 'none';
+        }
+    });
+});
 </script>
 {% endblock %}

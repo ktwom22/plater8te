@@ -4,18 +4,35 @@
 
 {% block head %}
 <style>
-/* ---------- CARD BASE STYLE ---------- */
+/* ---------- GLOBAL LOOK ---------- */
+body {
+    background: linear-gradient(135deg, #f6f8fd, #eef1f7);
+}
+
+/* ---------- PAGE TITLE ---------- */
+.page-title {
+    font-weight: 800;
+    font-size: 2.3rem;
+    text-align: center;
+    margin-bottom: 32px;
+    background: linear-gradient(90deg, #ff6363, #ff995e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ---------- CARD STYLE ---------- */
 .plate-card {
     position: relative;
-    border-radius: 16px;
+    border-radius: 20px;
     overflow: hidden;
     background: #ffffff;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.10);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    border: 1px solid #eaeaea;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.07);
+    transition: transform 0.2s ease, box-shadow 0.25s ease;
 }
 .plate-card:hover {
     transform: translateY(-6px);
-    box-shadow: 0 14px 28px rgba(0,0,0,0.18);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.14);
 }
 
 /* ---------- CATEGORY BANNER ---------- */
@@ -23,94 +40,140 @@
     position: absolute;
     top: 14px;
     left: -6px;
-    background: #ff5e57;
+    background: linear-gradient(90deg, #ff5e57, #ff8557);
     padding: 6px 14px;
     color: white;
-    font-weight: bold;
+    font-weight: 700;
     font-size: 0.85rem;
-    border-radius: 0 8px 8px 0;
-    clip-path: polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%);
+    border-radius: 0 12px 12px 0;
+    clip-path: polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%);
     z-index: 10;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
 }
 
-/* ---------- IMAGE ---------- */
+/* ---------- PLATE IMAGE ---------- */
 .plate-img {
     width: 100%;
-    height: 240px;
+    height: 250px;
     object-fit: cover;
+    transition: transform 0.30s ease;
+}
+.plate-card:hover .plate-img {
+    transform: scale(1.06);
 }
 
 /* ---------- CONTENT ---------- */
 .plate-body {
-    padding: 18px;
+    padding: 20px;
 }
 
-/* ---------- FONTS ---------- */
 .plate-title {
-    font-size: 1.2rem;
-    font-weight: 700;
+    font-size: 1.25rem;
+    font-weight: 800;
     margin-bottom: 6px;
 }
+
 .plate-restaurant {
-    font-size: 0.95rem;
+    font-size: 0.96rem;
     color: #777;
-    margin-bottom: 10px;
 }
 
 /* ---------- STAR RATING ---------- */
 .star-display {
-    color: #ffc107;
+    color: #ffb400;
     font-size: 1.1rem;
 }
 .star-display .inactive {
-    color: #ddd;
+    color: #ccc;
 }
 
-/* ---------- TEXT ---------- */
 .description-text {
     color: #555;
-    font-size: 0.95rem;
+    font-size: 0.97rem;
+    margin-top: 8px;
+}
+
+/* ---------- SEARCH BOX STYLE ---------- */
+.search-box {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 3px 20px rgba(0,0,0,0.07);
+    border: 1px solid #e0e0e0;
+}
+
+.search-box label {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.btn-primary {
+    border-radius: 12px !important;
+    padding: 10px !important;
+    font-weight: 600;
+}
+
+.btn-secondary {
+    border-radius: 12px !important;
+    padding: 10px !important;
 }
 </style>
 {% endblock %}
 
+
 {% block content %}
 <div class="container">
-    <h1 class="mb-4 text-center">Plate Feed</h1>
 
-    <!-- ---------- SEARCH FORM ---------- -->
-    <form method="get" action="{{ url_for('search_plates') }}" class="mb-4">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label>City / State / ZIP</label>
-                <input type="text" class="form-control" name="location" placeholder="e.g. Dover, NH" value="{{ request.args.get('location','') }}">
-            </div>
-            <div class="col-md-2">
-                <label>Radius (miles)</label>
-                <input type="number" class="form-control" name="radius" value="{{ request.args.get('radius',10) }}" min="1">
-            </div>
-            <div class="col-md-3">
-                <label>Category</label>
-                <select class="form-select" name="category">
-                    <option value="">All Categories</option>
-                    {% for cat in categories %}
-                        <option value="{{ cat.id }}" {% if request.args.get('category') == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3 d-grid">
-                <button class="btn btn-primary w-100">Search Plates</button>
-                <a href="{{ url_for('search_plates') }}" class="btn btn-secondary mt-2 w-100">Show All Plates</a>
+    <h1 class="page-title">Plate Feed</h1>
+
+    <!-- ---------- SEARCH BOX ---------- -->
+    <form method="get" action="{{ url_for('search_plates') }}" class="mb-5">
+        <div class="search-box">
+            <div class="row g-3 align-items-end">
+
+                <div class="col-md-4">
+                    <label>City / State / ZIP</label>
+                    <input type="text" class="form-control" name="location"
+                           placeholder="e.g. Dover, NH"
+                           value="{{ request.args.get('location','') }}">
+                </div>
+
+                <div class="col-md-2">
+                    <label>Radius (miles)</label>
+                    <input type="number" class="form-control" name="radius"
+                           value="{{ request.args.get('radius',10) }}" min="1">
+                </div>
+
+                <div class="col-md-3">
+                    <label>Category</label>
+                    <select class="form-select" name="category">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}"
+                                {% if request.args.get('category') == cat.id|string %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3 d-grid">
+                    <button class="btn btn-primary">Search Plates</button>
+                    <a href="{{ url_for('search_plates') }}"
+                       class="btn btn-secondary mt-2">Show All Plates</a>
+                </div>
+
             </div>
         </div>
     </form>
 
-    <!-- ---------- PLATE CARDS ---------- -->
+    <!-- ---------- PLATE LIST ---------- -->
     <div class="row justify-content-center">
+
         {% for plate in plates %}
         <div class="col-12 col-md-6 col-lg-4 mb-4">
             <div class="plate-card">
+
                 {% if plate.category_obj %}
                 <div class="category-banner">{{ plate.category_obj.name }}</div>
                 {% endif %}
@@ -133,11 +196,12 @@
                         <span class="text-muted small">({{ rating|round(1) }}/5)</span>
                     </div>
 
-                    <p class="description-text mb-2">{{ plate.description or "No description provided." }}</p>
+                    <p class="description-text">{{ plate.description or "No description provided." }}</p>
 
                     {% if plate.restaurant %}
-                    <div class="text-muted small">
+                    <div class="text-muted small mt-2">
                         <strong>Restaurant:</strong> {{ plate.restaurant.name }}<br>
+
                         {% if plate.restaurant.latitude and plate.restaurant.longitude %}
                             <a href="https://www.google.com/maps/dir/?api=1&destination={{ plate.restaurant.latitude }},{{ plate.restaurant.longitude }}"
                                target="_blank" rel="noopener">
@@ -146,7 +210,9 @@
                         {% else %}
                             {{ plate.restaurant.address }}
                         {% endif %}
+
                         <br>
+
                         {% if plate.restaurant.website %}
                             {% set domain = plate.restaurant.website.split("//")[-1].split("/")[0] %}
                             <strong>Website:</strong>
@@ -157,6 +223,7 @@
                 </div>
             </div>
         </div>
+
         {% else %}
         <div class="col-12">
             <p class="text-center text-muted">No plates found for your search.</p>
