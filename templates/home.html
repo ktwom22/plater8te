@@ -4,16 +4,73 @@
 
 {% block head %}
 <style>
+/* ---------- CARD BASE STYLE ---------- */
+.plate-card {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.plate-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.18);
+}
+
+/* ---------- CATEGORY BANNER ---------- */
+.category-banner {
+    position: absolute;
+    top: 14px;
+    left: -6px;
+    background: #ff5e57;
+    padding: 6px 14px;
+    color: white;
+    font-weight: bold;
+    font-size: 0.85rem;
+    border-radius: 0 8px 8px 0;
+    clip-path: polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%);
+    z-index: 10;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+}
+
+/* ---------- IMAGE ---------- */
+.plate-img {
+    width: 100%;
+    height: 240px;
+    object-fit: cover;
+}
+
+/* ---------- CONTENT ---------- */
+.plate-body {
+    padding: 18px;
+}
+
+/* ---------- FONTS ---------- */
+.plate-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.plate-restaurant {
+    font-size: 0.95rem;
+    color: #777;
+    margin-bottom: 10px;
+}
+
+/* ---------- STAR RATING ---------- */
 .star-display {
     color: #ffc107;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
 }
 .star-display .inactive {
     color: #ddd;
 }
-.card-img-top {
-    height: 250px;
-    object-fit: cover;
+
+/* ---------- TEXT ---------- */
+.description-text {
+    color: #555;
+    font-size: 0.95rem;
 }
 </style>
 {% endblock %}
@@ -22,67 +79,88 @@
 <div class="container">
     <h1 class="mb-4 text-center">Plate Feed</h1>
 
-    <div class="row justify-content-center" id="plate-feed">
+    <!-- ---------- SEARCH FORM ---------- -->
+    <form method="get" action="{{ url_for('search_plates') }}" class="mb-4">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label>City / State / ZIP</label>
+                <input type="text" class="form-control" name="location" placeholder="e.g. Dover, NH" value="{{ request.args.get('location','') }}">
+            </div>
+            <div class="col-md-2">
+                <label>Radius (miles)</label>
+                <input type="number" class="form-control" name="radius" value="{{ request.args.get('radius',10) }}" min="1">
+            </div>
+            <div class="col-md-3">
+                <label>Category</label>
+                <select class="form-select" name="category">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if request.args.get('category') == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button class="btn btn-primary w-100">Search Plates</button>
+                <a href="{{ url_for('search_plates') }}" class="btn btn-secondary mt-2 w-100">Show All Plates</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- ---------- PLATE CARDS ---------- -->
+    <div class="row justify-content-center">
         {% for plate in plates %}
-            <div class="col-12 col-md-6 col-lg-4 mb-4">
-                <div class="card shadow-sm">
+        <div class="col-12 col-md-6 col-lg-4 mb-4">
+            <div class="plate-card">
+                {% if plate.category_obj %}
+                <div class="category-banner">{{ plate.category_obj.name }}</div>
+                {% endif %}
 
-                    <!-- Plate Image -->
-                    <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
+                <img src="{{ plate.image_url }}" class="plate-img" alt="{{ plate.name }}">
 
-                    <div class="card-body d-flex flex-column">
+                <div class="plate-body">
+                    <h5 class="plate-title">{{ plate.name }}</h5>
 
-                        <!-- Plate Title -->
-                        <h5 class="card-title">{{ plate.name }}</h5>
-
-                        <!-- STAR RATING DISPLAY -->
-                        <div class="star-display mb-2">
-                            {% set rounded = plate.avg_rating|round(0, 'floor') %}
-                            {% for i in range(1, 6) %}
-                                {% if i <= rounded %}
-                                    &#9733;
-                                {% else %}
-                                    <span class="inactive">&#9733;</span>
-                                {% endif %}
-                            {% endfor %}
-                            <span class="text-muted small">
-                                ({{ plate.avg_rating }}/5)
-                            </span>
-                        </div>
-
-                        <!-- Description -->
-                        <p class="card-text">{{ plate.description or "No description" }}</p>
-
-                        <!-- RESTAURANT SECTION -->
-                        {% if plate.restaurant %}
-                            <p class="text-muted small mb-2">
-
-                                <!-- NAME -->
-                                <strong>Restaurant:</strong> {{ plate.restaurant.name }}<br>
-
-                                <!-- ADDRESS + MAP LINK -->
-                                {% if plate.restaurant.latitude and plate.restaurant.longitude %}
-                                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ plate.restaurant.latitude }},{{ plate.restaurant.longitude }}"
-                                       target="_blank" rel="noopener">
-                                        {{ plate.restaurant.address }}
-                                    </a>
-                                {% else %}
-                                    {{ plate.restaurant.address }}
-                                {% endif %}
-
-                                <!-- WEBSITE (NEW) -->
-                                {% if plate.restaurant.website %}
-                                  <p class="text-muted small">
-                                    <strong>Website:</strong> <a href="{{ plate.restaurant.website }}" target="_blank">{{ plate.restaurant.website }}</a>
-                                  </p>
-                                {% endif %}
-
-                            </p>
-                        {% endif %}
-
+                    <!-- STAR RATING -->
+                    <div class="star-display mb-2">
+                        {% set rating = (plate.likes | map(attribute='score') | sum / (plate.likes|length) ) if plate.likes|length > 0 else 0 %}
+                        {% for i in range(1,6) %}
+                            {% if i <= rating|round(0,'floor') %}
+                                &#9733;
+                            {% else %}
+                                <span class="inactive">&#9733;</span>
+                            {% endif %}
+                        {% endfor %}
+                        <span class="text-muted small">({{ rating|round(1) }}/5)</span>
                     </div>
+
+                    <p class="description-text mb-2">{{ plate.description or "No description provided." }}</p>
+
+                    {% if plate.restaurant %}
+                    <div class="text-muted small">
+                        <strong>Restaurant:</strong> {{ plate.restaurant.name }}<br>
+                        {% if plate.restaurant.latitude and plate.restaurant.longitude %}
+                            <a href="https://www.google.com/maps/dir/?api=1&destination={{ plate.restaurant.latitude }},{{ plate.restaurant.longitude }}"
+                               target="_blank" rel="noopener">
+                               {{ plate.restaurant.address }}
+                            </a>
+                        {% else %}
+                            {{ plate.restaurant.address }}
+                        {% endif %}
+                        <br>
+                        {% if plate.restaurant.website %}
+                            {% set domain = plate.restaurant.website.split("//")[-1].split("/")[0] %}
+                            <strong>Website:</strong>
+                            <a href="{{ plate.restaurant.website }}" target="_blank">{{ domain }}</a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <p class="text-center text-muted">No plates found for your search.</p>
+        </div>
         {% endfor %}
     </div>
 </div>

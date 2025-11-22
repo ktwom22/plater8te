@@ -49,11 +49,11 @@ class Restaurant(db.Model):
     plates = db.relationship('Plate', backref='restaurant', lazy=True)
     website = db.Column(db.String(255))  # <--- ADD THIS
 
-
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
-    plates = db.relationship('Plate', backref='category_obj', lazy=True)
+    # Only define relationship once
+    plates = db.relationship('Plate', back_populates='category', lazy=True)
 
 class Plate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -67,6 +67,10 @@ class Plate(db.Model):
     comments = db.relationship('Comment', backref='plate', lazy=True)
     likes = db.relationship('Like', backref='plate', lazy=True)
     user_plates = db.relationship('UserPlate', backref='plate', lazy=True)
+
+    # Fix relationship
+    category = db.relationship('Category', back_populates='plates')
+
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -124,12 +128,16 @@ def process_uploaded_image(file, filename):
         print("Image processing error:", e)
     return f"static/uploads/{filename}"
 
+
 def haversine(lat1, lon1, lat2, lon2):
-    R = 3956
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = sin(dlat/2)**2 + cos(radians(lat1))*cos(radians(lat2))*sin(dlon/2)**2
-    return 2*asin(sqrt(a))*R
+    """Calculate distance in miles between two lat/lon points."""
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    miles = 3958.8 * c
+    return miles
 
 def geocode_location(query):
     if not query:
@@ -239,6 +247,33 @@ def home():
 
     categories = Category.query.order_by(Category.name).all()
     return render_template('home.html', plates=plates, categories=categories)
+
+
+@app.route('/plates')
+def search_plates():
+    location = request.args.get('location', '').strip()
+    radius = float(request.args.get('radius', 10))  # miles
+    plates = Plate.query.join(Restaurant).all()  # fetch all plates with restaurants
+
+    filtered_plates = []
+
+    if location:
+        # geocode location to lat/lon (use your geocode_location function)
+        lat, lon = geocode_location(location)
+        if lat is None or lon is None:
+            return jsonify({'error': f"Could not find location '{location}'"}), 400
+
+        for plate in plates:
+            if plate.restaurant and plate.restaurant.latitude and plate.restaurant.longitude:
+                dist = haversine(lat, lon, plate.restaurant.latitude, plate.restaurant.longitude)
+                if dist <= radius:
+                    filtered_plates.append(plate)
+    else:
+        # no location: show all
+        filtered_plates = plates
+
+    categories = Category.query.all()
+    return render_template('home.html', plates=filtered_plates, categories=categories)
 
 
 # ------------------ Auth ------------------
