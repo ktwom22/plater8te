@@ -164,14 +164,37 @@ def geocode_location(query):
     return None, None
 
 def seed_default_categories():
-    defaults = ["American", "BBQ", "Burgers", "Breakfast", "Brunch",
-                "Chinese", "Thai", "Indian", "Italian", "Mexican",
-                "Pizza", "Seafood", "Sushi", "Steakhouse",
-                "Vegetarian", "Vegan", "Dessert"]
-    for name in defaults:
+    default_categories = [
+        # Mexican
+        "Mexican", "Tacos", "Burritos", "Quesadillas", "Enchiladas", "Churros",
+        # Italian
+        "Italian", "Spaghetti", "Pizza", "Lasagna", "Ravioli", "Risotto",
+        # Japanese
+        "Japanese", "Sushi", "Ramen", "Tempura", "Udon", "Sashimi",
+        # American
+        "American", "Burgers", "Hot Dogs", "Fried Chicken", "Steak", "BBQ",
+        # Chinese
+        "Chinese", "Dumplings", "Sweet and Sour", "Kung Pao Chicken", "Lo Mein",
+        # Indian
+        "Indian", "Curry", "Tandoori", "Biryani", "Samosa", "Paneer",
+        # Mediterranean
+        "Mediterranean", "Gyros", "Falafel", "Hummus", "Shawarma", "Tabbouleh",
+        # Thai
+        "Thai", "Pad Thai", "Green Curry", "Tom Yum", "Spring Rolls",
+        # Desserts
+        "Dessert", "Ice Cream", "Cake", "Pie", "Brownies", "Macarons",
+        # Breakfast / Brunch
+        "Breakfast", "Pancakes", "Waffles", "Omelette", "French Toast",
+        # Drinks
+        "Beverages", "Smoothie", "Coffee", "Tea", "Milkshake", "Cocktail"
+    ]
+
+    for name in default_categories:
         if not Category.query.filter_by(name=name).first():
-            db.session.add(Category(name=name))
+            cat = Category(name=name)
+            db.session.add(cat)
     db.session.commit()
+    print("Default categories seeded!")
 
 def schedule_email_for_rating(plate_id, user_id):
     pass
