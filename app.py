@@ -304,12 +304,17 @@ def home():
 def search_plates():
     location = request.args.get('location', '').strip()
     radius = float(request.args.get('radius', 10))  # miles
+
     plates = Plate.query.join(Restaurant).all()  # fetch all plates with restaurants
+
+    # Compute avg_rating for each plate
+    for plate in plates:
+        ratings = [r.rating for r in plate.ratings] if hasattr(plate, 'ratings') else []
+        plate.avg_rating = sum(ratings)/len(ratings) if ratings else 0
 
     filtered_plates = []
 
     if location:
-        # geocode location to lat/lon (use your geocode_location function)
         lat, lon = geocode_location(location)
         if lat is None or lon is None:
             return jsonify({'error': f"Could not find location '{location}'"}), 400
@@ -320,11 +325,11 @@ def search_plates():
                 if dist <= radius:
                     filtered_plates.append(plate)
     else:
-        # no location: show all
         filtered_plates = plates
 
     categories = Category.query.all()
     return render_template('home.html', plates=filtered_plates, categories=categories)
+
 
 
 # ------------------ Auth ------------------
