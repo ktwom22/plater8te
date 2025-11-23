@@ -302,33 +302,54 @@ def home():
 
 @app.route('/plates')
 def search_plates():
-    location = request.args.get('location', '').strip()
-    radius = float(request.args.get('radius', 10))  # miles
+    try:
+        # --- Query params ---
+        location = request.args.get('location', '').strip()
+        category_id = request.args.get('category_id', type=int)
+        radius_miles = float(request.args.get('radius', 10))  # default 10 miles
 
-    plates = Plate.query.join(Restaurant).all()  # fetch all plates with restaurants
+        # Fetch all plates with restaurants preloaded
+        plates = Plate.query.join(Restaurant).all()
 
-    # Compute avg_rating for each plate
-    for plate in plates:
-        ratings = [r.rating for r in plate.ratings] if hasattr(plate, 'ratings') else []
-        plate.avg_rating = sum(ratings)/len(ratings) if ratings else 0
-
-    filtered_plates = []
-
-    if location:
-        lat, lon = geocode_location(location)
-        if lat is None or lon is None:
-            return jsonify({'error': f"Could not find location '{location}'"}), 400
-
+        # Compute avg_rating for each plate
         for plate in plates:
-            if plate.restaurant and plate.restaurant.latitude and plate.restaurant.longitude:
-                dist = haversine(lat, lon, plate.restaurant.latitude, plate.restaurant.longitude)
-                if dist <= radius:
-                    filtered_plates.append(plate)
-    else:
+            ratings = [r.rating for r in plate.ratings] if hasattr(plate, 'ratings') else []
+            plate.avg_rating = sum(ratings) / len(ratings) if ratings else 0
+
         filtered_plates = plates
 
-    categories = Category.query.all()
-    return render_template('home.html', plates=filtered_plates, categories=categories)
+        # --- Filter by category if provided ---
+        if category_id:
+            filtered_plates = [p for p in filtered_plates if p.category_id == category_id]
+
+        # --- Filter by location if provided ---
+        if location:
+            lat, lon = geocode_location(location)
+            if lat is None or lon is None:
+                return render_template(
+                    'home.html',
+                    plates=[],
+                    categories=Category.query.all(),
+                    error=f"Could not find location '{location}'"
+                )
+
+            filtered_plates = [
+                p for p in filtered_plates
+                if p.restaurant and p.restaurant.latitude and p.restaurant.longitude and
+                   haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
+            ]
+
+        categories = Category.query.all()
+        return render_template('home.html', plates=filtered_plates, categories=categories)
+
+    except Exception as e:
+        print("Error in search_plates:", e)
+        return render_template(
+            'home.html',
+            plates=[],
+            categories=Category.query.all(),
+            error='Server error'
+        )
 
 
 
