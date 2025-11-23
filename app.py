@@ -26,6 +26,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+
 GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '').strip()
 
 # ------------------ Models ------------------
@@ -141,6 +142,33 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * asin(sqrt(a))
     miles = 3958.8 * c
     return miles
+
+def find_nearby_restaurants(lat, lon, radius_miles=2):
+    if lat is None or lon is None:
+        return []
+
+    # Pre-filter using a bounding box (VERY fast)
+    lat_mile = 1 / 69.0
+    lon_mile = 1 / (69.0 * cos(radians(lat)))
+
+    min_lat = lat - (radius_miles * lat_mile)
+    max_lat = lat + (radius_miles * lat_mile)
+    min_lon = lon - (radius_miles * lon_mile)
+    max_lon = lon + (radius_miles * lon_mile)
+
+    # SQL-only filtering
+    candidates = Restaurant.query.filter(
+        Restaurant.latitude.between(min_lat, max_lat),
+        Restaurant.longitude.between(min_lon, max_lon)
+    ).all()
+
+    # Final check (much smaller list)
+    return [
+        r for r in candidates
+        if haversine(lat, lon, r.latitude, r.longitude) <= radius_miles
+    ]
+
+
 
 def geocode_location(query):
     if not query:
@@ -395,21 +423,28 @@ def nearby_restaurants():
     """
     Return nearby restaurants based on lat/lon or location query.
     Uses Google Places API if GOOGLE_PLACES_API_KEY is set, otherwise local DB with Haversine distance.
+    Fast food restaurants are filtered out.
     """
+    FAST_FOOD_KEYWORDS = [
+        "McDonald's", "Burger King", "Wendy's", "KFC", "Taco Bell",
+        "Subway", "Domino's", "Pizza Hut", "Chipotle", "Popeyes",
+        "Arby's", "Jack in the Box", "Dairy Queen", "Little Caesars",
+        "Dunkin'", "Dunkin", "Starbucks", "Five Guys", "In-N-Out", "Sonic"
+    ]
+
     try:
-        # --- Query params ---
-        radius_meters = float(request.args.get('radius', 16000))  # default ~10 miles
+        radius_meters = float(request.args.get('radius', 4000))  # default ~2.5 miles
         lat = request.args.get('lat', type=float)
         lon = request.args.get('lon', type=float)
         location = request.args.get('location', '').strip()
 
-        # --- Geocode if location provided but no coordinates ---
+        # Geocode if location provided but no coordinates
         if location and (lat is None or lon is None):
             lat, lon = geocode_location(location)
             if lat is None or lon is None:
                 return jsonify({'restaurants': [], 'error': f"Could not find location '{location}'"}), 400
 
-        # --- Ensure coordinates are present ---
+        # Ensure coordinates are present
         if lat is None or lon is None:
             return jsonify({'restaurants': [], 'error': 'Missing latitude/longitude or location query'}), 400
 
@@ -425,19 +460,23 @@ def nearby_restaurants():
                 )
                 if next_page_token:
                     url += f"&pagetoken={next_page_token}"
-                    # Google requires a short delay before using next_page_token
                     import time
-                    time.sleep(2)
+                    time.sleep(2)  # short delay required by Google
 
                 resp = requests.get(url, timeout=6).json()
                 if resp.get('status') not in ('OK', 'ZERO_RESULTS'):
                     break
 
-                for r in resp.get('results', []):
+                for r in resp.get("results", []):
+                    name = r.get("name", "")
+                    # Skip fast food
+                    if any(keyword.lower() in name.lower() for keyword in FAST_FOOD_KEYWORDS):
+                        continue
+
                     loc = r['geometry']['location']
                     place_id = r.get('place_id')
                     website = None
-                    # Fetch website via place details
+                    # Fetch website via Place Details
                     if place_id:
                         try:
                             details_url = (
@@ -451,7 +490,7 @@ def nearby_restaurants():
                             pass
 
                     restaurants.append({
-                        "name": r.get("name"),
+                        "name": name,
                         "latitude": loc.get("lat"),
                         "longitude": loc.get("lng"),
                         "address": r.get("vicinity", ""),
@@ -462,14 +501,17 @@ def nearby_restaurants():
                 if not next_page_token:
                     break
 
+        # --- Local DB fallback ---
         else:
-            # --- Fallback: local DB ---
             radius_miles = radius_meters / 1609.34
             all_restaurants = Restaurant.query.filter(
                 Restaurant.latitude.isnot(None),
                 Restaurant.longitude.isnot(None)
             ).all()
             for r in all_restaurants:
+                # Skip fast food
+                if any(keyword.lower() in r.name.lower() for keyword in FAST_FOOD_KEYWORDS):
+                    continue
                 dist = haversine(lat, lon, r.latitude, r.longitude)
                 if dist <= radius_miles:
                     restaurants.append({
@@ -490,6 +532,35 @@ def nearby_restaurants():
     except Exception as e:
         print("Nearby restaurants error:", e)
         return jsonify({'restaurants': [], 'error': 'Server error', 'detail': str(e)}), 500
+
+
+@app.route('/add_restaurant', methods=['POST'])
+def add_restaurant():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Login required'}), 403
+
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    address = data.get('address', '').strip()
+    city = data.get('city', '').strip()
+    state = data.get('state', '').strip()
+    website = data.get('website', '').strip()
+
+    if not (name and address and city and state):
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+    full_address = f"{address}, {city}, {state}"
+
+    # Optionally geocode to store lat/lon
+    lat, lon = geocode_location(full_address)
+
+    restaurant = Restaurant(name=name, address=full_address, latitude=lat, longitude=lon, website=website)
+    db.session.add(restaurant)
+    db.session.commit()
+
+    return jsonify({'success': True, 'restaurant_id': restaurant.id, 'name': restaurant.name})
+
+
 
 
 # ------------------ Play / Swipe ------------------
