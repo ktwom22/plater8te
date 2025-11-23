@@ -174,8 +174,8 @@ body {
         <div class="col-12 col-md-6 col-lg-4 mb-4">
             <div class="plate-card">
 
-                {% if plate.category_obj %}
-                <div class="category-banner">{{ plate.category_obj.name }}</div>
+                {% if plate.category %}
+                <div class="category-banner">{{ plate.category.name }}</div>
                 {% endif %}
 
                 <img src="{{ plate.image_url }}" class="plate-img" alt="{{ plate.name }}">
@@ -185,15 +185,14 @@ body {
 
                     <!-- STAR RATING -->
                     <div class="star-display mb-2">
-                        {% set rating = (plate.likes | map(attribute='score') | sum / (plate.likes|length) ) if plate.likes|length > 0 else 0 %}
                         {% for i in range(1,6) %}
-                            {% if i <= rating|round(0,'floor') %}
+                            {% if i <= plate.avg_rating|round(0,'floor') %}
                                 &#9733;
                             {% else %}
                                 <span class="inactive">&#9733;</span>
                             {% endif %}
                         {% endfor %}
-                        <span class="text-muted small">({{ rating|round(1) }}/5)</span>
+                        <span class="text-muted small">({{ plate.avg_rating }}/5)</span>
                     </div>
 
                     <p class="description-text">{{ plate.description or "No description provided." }}</p>

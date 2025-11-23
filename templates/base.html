@@ -11,108 +11,88 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <!-- Inline styles for stars, cards, and body -->
+    <!-- Inline styles -->
     <style>
         body { background-color: #f9f9f9; font-family: 'Segoe UI', sans-serif; }
-
-        /* Star rating display */
-        .star-rating {
-            direction: rtl;
-            font-size: 1.8rem;
-            unicode-bidi: bidi-override;
-            display: flex;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-        .star-rating input[type="radio"] { display: none; }
-        .star-rating label {
-            color: #ddd;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        .star-rating input[type="radio"]:checked ~ label,
-        .star-rating label:hover,
-        .star-rating label:hover ~ label { color: #ffc107; }
 
         /* Navbar */
         .navbar-brand { font-weight: 700; font-size: 1.4rem; }
         .navbar-nav .nav-link { font-weight: 500; }
         .dropdown-menu-end { min-width: 180px; }
 
-        /* Card images */
+        /* Cards & Images */
         .card-img-top { object-fit: cover; height: 250px; border-radius: 12px 12px 0 0; }
-
-        /* Comments section scroll */
-        .comment-section ul { max-height: 200px; overflow-y: auto; }
-
-        /* Buttons */
-        .btn { min-width: 48%; }
-        @media (max-width: 576px) {
-            .card-img-top { height: 200px; }
-            .btn { min-width: 100%; margin-bottom: 5px; }
-        }
 
         /* Toast container */
         #toast-container {
             position: fixed;
             top: 1rem;
             right: 1rem;
-            z-index: 1055;
+            z-index: 1090;
+        }
+
+        /* Modal z-index adjustments for dropdowns */
+        .modal-backdrop {
+            z-index: 1040 !important;
+        }
+        .modal {
+            z-index: 1050 !important;
         }
     </style>
 
     {% block head %}{% endblock %}
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
-  <div class="container">
-    <a class="navbar-brand" href="{{ url_for('home') }}">Plater8te</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-      aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
 
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        {% if session.get('user_id') %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('create_plate') }}">Post Plate</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('play') }}">Play: Rate the Plate</a></li>
-          <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  My Plates
-              </a>
-              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
-                  <li><a class="dropdown-item" href="{{ url_for('my_plates') }}">All Plates</a></li>
-                  <li><a class="dropdown-item" href="{{ url_for('favorites') }}">Favorites</a></li>
-                  <li><a class="dropdown-item" href="{{ url_for('unrated_plates') }}">Unrated Plates</a></li>
-              </ul>
-          </li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout ({{ session.get('username') }})</a></li>
-        {% else %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Register</a></li>
-        {% endif %}
-      </ul>
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="{{ url_for('home') }}">Plater8te</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                {% if session.get('user_id') %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('create_plate') }}">Post Plate</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('play') }}">Play: Rate the Plate</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false" data-bs-display="static">
+                            My Plates
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                            <li><a class="dropdown-item" href="{{ url_for('my_plates') }}">All Plates</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('favorites') }}">Favorites</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('unrated_plates') }}">Unrated Plates</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout ({{ session.get('username') }})</a></li>
+                {% else %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Register</a></li>
+                {% endif %}
+            </ul>
+        </div>
     </div>
-  </div>
 </nav>
 
 <!-- Page Content -->
 <div class="container mb-5">
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div id="toast-container">
-            {% for category, msg in messages %}
-                <div class="toast align-items-center text-bg-{{ 'success' if category=='success' else 'danger' }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
-                    <div class="d-flex">
-                        <div class="toast-body">
-                            {{ msg }}
+            <div id="toast-container">
+                {% for category, msg in messages %}
+                    <div class="toast align-items-center text-bg-{{ 'success' if category=='success' else 'danger' }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body">{{ msg }}</div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                         </div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                     </div>
-                </div>
-            {% endfor %}
-        </div>
+                {% endfor %}
+            </div>
         {% endif %}
     {% endwith %}
 

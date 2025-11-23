@@ -1,4 +1,3 @@
-
 import os
 import uuid
 from datetime import datetime
@@ -11,13 +10,6 @@ from flask_migrate import Migrate
 import requests
 from dotenv import load_dotenv
 from PIL import Image, ExifTags
-from functools import lru_cache
-import time
-
-# Simple in-memory cache (use Redis in production)
-CACHE = {}
-CACHE_TTL = 60 * 30  # 30 minutes
-
 
 load_dotenv()
 
@@ -82,8 +74,11 @@ class Plate(db.Model):
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"))
+    score = db.Column(db.Integer, default=0)  # <-- add this
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -234,8 +229,13 @@ def home():
     lon = request.args.get('lon')
     radius_miles = request.args.get('radius_miles', type=float)
 
-    # Base plate query
-    plates_q = Plate.query.order_by(Plate.created_at.desc())
+    # Base plate query with joined relationships
+    plates_q = Plate.query.options(
+        db.joinedload(Plate.restaurant),
+        db.joinedload(Plate.category),
+        db.joinedload(Plate.user_plates)
+    ).order_by(Plate.created_at.desc())
+
     if category_id:
         plates_q = plates_q.filter(Plate.category_id == category_id)
 
@@ -243,17 +243,8 @@ def home():
 
     # Compute average rating per plate
     for plate in plates:
-        ratings = [up.rated for up in plate.user_plates if up.rated]
+        ratings = [up.rated for up in plate.user_plates if up.rated is not None and up.rated > 0]
         plate.avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
-
-        # 🔍 DEBUG: Print restaurant website values to console
-        if plate.restaurant:
-            print(
-                "Restaurant:",
-                plate.restaurant.name,
-                "| Website:",
-                plate.restaurant.website
-            )
 
     # Location filtering
     if (lat and lon) or location_query:
@@ -278,6 +269,7 @@ def home():
 
     categories = Category.query.order_by(Category.name).all()
     return render_template('home.html', plates=plates, categories=categories)
+
 
 
 @app.route('/plates')
@@ -401,113 +393,83 @@ def create_plate():
 @app.route('/nearby_restaurants')
 def nearby_restaurants():
     """
-    Ultra-fast version of nearby restaurant lookup.
-    Caches results, removes Details API calls, and limits Places requests.
+    Return nearby restaurants based on lat/lon or location query.
+    Uses Google Places API if GOOGLE_PLACES_API_KEY is set, otherwise local DB with Haversine distance.
     """
-
     try:
-        radius_meters = float(request.args.get('radius', 16000))
+        # --- Query params ---
+        radius_meters = float(request.args.get('radius', 16000))  # default ~10 miles
         lat = request.args.get('lat', type=float)
         lon = request.args.get('lon', type=float)
         location = request.args.get('location', '').strip()
 
-        # ----------------------------------------
-        # 1. Resolve location → lat/lon (if needed)
-        # ----------------------------------------
+        # --- Geocode if location provided but no coordinates ---
         if location and (lat is None or lon is None):
             lat, lon = geocode_location(location)
             if lat is None or lon is None:
                 return jsonify({'restaurants': [], 'error': f"Could not find location '{location}'"}), 400
 
+        # --- Ensure coordinates are present ---
         if lat is None or lon is None:
             return jsonify({'restaurants': [], 'error': 'Missing latitude/longitude or location query'}), 400
 
-        # -------------- Cache Key ----------------
-        cache_key = f"{round(lat,3)}:{round(lon,3)}:{int(radius_meters)}"
-        now = time.time()
-
-        # ----------------------------------------
-        # 2. Return cached result instantly
-        # ----------------------------------------
-        if cache_key in CACHE:
-            saved = CACHE[cache_key]
-            if now - saved["time"] < CACHE_TTL:
-                return jsonify(saved["data"])
-
-        # ----------------------------------------
-        # 3. Google API logic
-        # ----------------------------------------
         restaurants = []
-        fast_food_terms = ['mcdonald', 'burger king', 'wendy', 'taco bell', 'kfc', 'subway']
 
+        # --- Google Places API ---
         if GOOGLE_PLACES_API_KEY:
-
-            # Critical: request website fields directly (FASTER)
-            base_url = (
-                "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-                f"?location={lat},{lon}"
-                f"&radius={int(radius_meters)}"
-                f"&type=restaurant"
-                f"&key={GOOGLE_PLACES_API_KEY}"
-                f"&fields=name,geometry,place_id,formatted_address,website,vicinity"
-            )
-
             next_page_token = None
-            page_count = 0
-
-            while page_count < 3:  # limit pages for speed
-                url = base_url
+            while True:
+                url = (
+                    "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+                    f"?location={lat},{lon}&radius={int(radius_meters)}&type=restaurant&key={GOOGLE_PLACES_API_KEY}"
+                )
                 if next_page_token:
                     url += f"&pagetoken={next_page_token}"
-                    time.sleep(1.5)  # Google requires this delay
+                    # Google requires a short delay before using next_page_token
+                    import time
+                    time.sleep(2)
 
-                resp = requests.get(url, timeout=5).json()
-
-                status = resp.get("status")
-
-                if status not in ("OK", "ZERO_RESULTS"):
+                resp = requests.get(url, timeout=6).json()
+                if resp.get('status') not in ('OK', 'ZERO_RESULTS'):
                     break
 
-                for r in resp.get("results", []):
-                    name = r.get("name", "").strip()
-                    name_lower = name.lower()
-
-                    # Skip fast food
-                    if any(term in name_lower for term in fast_food_terms):
-                        continue
-
-                    loc = r["geometry"]["location"]
+                for r in resp.get('results', []):
+                    loc = r['geometry']['location']
+                    place_id = r.get('place_id')
+                    website = None
+                    # Fetch website via place details
+                    if place_id:
+                        try:
+                            details_url = (
+                                f"https://maps.googleapis.com/maps/api/place/details/json"
+                                f"?place_id={place_id}&fields=name,formatted_address,website&key={GOOGLE_PLACES_API_KEY}"
+                            )
+                            details = requests.get(details_url, timeout=6).json()
+                            if details.get("status") == "OK":
+                                website = details.get("result", {}).get("website")
+                        except:
+                            pass
 
                     restaurants.append({
-                        "name": name,
+                        "name": r.get("name"),
                         "latitude": loc.get("lat"),
                         "longitude": loc.get("lng"),
-                        "address": r.get("vicinity") or r.get("formatted_address", ""),
-                        "website": r.get("website", "")
+                        "address": r.get("vicinity", ""),
+                        "website": website or ""
                     })
 
                 next_page_token = resp.get("next_page_token")
                 if not next_page_token:
                     break
 
-                page_count += 1
-
         else:
-            # ----------------------------------------
-            # 4. Local DB fallback (much faster)
-            # ----------------------------------------
+            # --- Fallback: local DB ---
             radius_miles = radius_meters / 1609.34
-
-            all_restaurants = (
-                Restaurant.query
-                .filter(Restaurant.latitude.isnot(None), Restaurant.longitude.isnot(None))
-                .all()
-            )
-
+            all_restaurants = Restaurant.query.filter(
+                Restaurant.latitude.isnot(None),
+                Restaurant.longitude.isnot(None)
+            ).all()
             for r in all_restaurants:
-                if any(term in (r.name or "").lower() for term in fast_food_terms):
-                    continue
-
                 dist = haversine(lat, lon, r.latitude, r.longitude)
                 if dist <= radius_miles:
                     restaurants.append({
@@ -518,28 +480,16 @@ def nearby_restaurants():
                         "website": r.website or ""
                     })
 
-        # ----------------------------------------
-        # 5. Cache result before returning
-        # ----------------------------------------
-        result = {
+        return jsonify({
             "restaurants": restaurants,
             "lat": lat,
             "lon": lon,
             "count": len(restaurants)
-        }
-
-        CACHE[cache_key] = {
-            "time": now,
-            "data": result
-        }
-
-        return jsonify(result)
+        })
 
     except Exception as e:
         print("Nearby restaurants error:", e)
         return jsonify({'restaurants': [], 'error': 'Server error', 'detail': str(e)}), 500
-
-
 
 
 # ------------------ Play / Swipe ------------------

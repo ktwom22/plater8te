@@ -4,7 +4,7 @@
 
 {% block head %}
 <style>
-/* --- STAR RATING (interactive) --- */
+/* ---------- STAR RATING (interactive) ---------- */
 .star-rating {
     direction: rtl;
     font-size: 2rem;
@@ -13,14 +13,17 @@
     justify-content: center;
     margin-bottom: 1rem;
 }
+
 .star-rating input[type="radio"] {
     display: none;
 }
+
 .star-rating label {
     color: #ddd;
     cursor: pointer;
     transition: color 0.2s;
 }
+
 .star-rating input[type="radio"]:checked ~ label,
 .star-rating label:hover,
 .star-rating label:hover ~ label {
@@ -31,9 +34,10 @@
 
 {% block content %}
 <div class="container my-4">
+
     <h2 class="text-center mb-3">Rate "{{ plate.name }}"</h2>
 
-    <!-- Plate info -->
+    <!-- Plate Info Card -->
     <div class="card mb-4 shadow-sm mx-auto" style="max-width: 500px;">
         {% if plate.image_url %}
             <img src="/{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}">
@@ -48,6 +52,7 @@
         </div>
     </div>
 
+    <!-- Rating Form -->
     <form method="POST" class="mx-auto" style="max-width: 500px;">
 
         <!-- Interactive Star Rating -->
@@ -55,12 +60,14 @@
             <label class="form-label">Your rating:</label>
             <div class="star-rating">
                 {% for i in range(5, 0, -1) %}
-                    <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}" {% if user_plate.rated == i %}checked{% endif %}>
+                    <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}"
+                        {% if user_plate.rated == i %}checked{% endif %}>
                     <label for="star{{ i }}" title="{{ i }} stars">&#9733;</label>
                 {% endfor %}
             </div>
         </div>
 
+        <!-- Optional Description -->
         <div class="mb-3">
             <label for="description" class="form-label">Add a description:</label>
             <textarea name="description" id="description" class="form-control" rows="3">{{ user_plate.description or '' }}</textarea>
@@ -68,5 +75,6 @@
 
         <button type="submit" class="btn btn-success w-100">Submit</button>
     </form>
+
 </div>
 {% endblock %}

@@ -8,7 +8,7 @@
 
     <form method="POST" enctype="multipart/form-data" id="plate-form">
 
-        <!-- --- Nearby Restaurants --- -->
+        <!-- Nearby Restaurants -->
         <div class="mb-3">
             <label class="form-label">Select Restaurant</label>
 
@@ -31,19 +31,19 @@
             <p id="selected-restaurant" class="text-muted"></p>
         </div>
 
-        <!-- --- Plate Name --- -->
+        <!-- Plate Name -->
         <div class="mb-3">
             <label for="name" class="form-label">Plate Name</label>
             <input type="text" class="form-control" id="name" name="name" required>
         </div>
 
-        <!-- --- Description --- -->
+        <!-- Description -->
         <div class="mb-3">
             <label for="description" class="form-label">Description (Optional)</label>
             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
         </div>
 
-        <!-- --- Category Autocomplete --- -->
+        <!-- Category Autocomplete -->
         <div class="mb-3 position-relative">
             <label for="category_id" class="form-label">Category</label>
             <input type="text" id="category_search" class="form-control" placeholder="Start typing to search..." autocomplete="off" required>
@@ -53,10 +53,10 @@
                     <option value="{{ c.id }}">{{ c.name }}</option>
                 {% endfor %}
             </select>
-            <ul id="category_suggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
+            <ul id="category_suggestions" class="list-group position-absolute w-100" style="z-index:1100; display:none;"></ul>
         </div>
 
-        <!-- --- Image Upload --- -->
+        <!-- Image Upload -->
         <div class="mb-3">
             <label for="image" class="form-label">Upload Image</label>
             <input class="form-control" type="file" id="image" name="image" accept="image/*">
@@ -67,7 +67,7 @@
     </form>
 </div>
 
-<!-- --- Restaurant Modal --- -->
+<!-- Restaurant Modal -->
 <div class="modal fade" id="restaurantModal" tabindex="-1" aria-labelledby="restaurantModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -88,14 +88,12 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let lat, lon;
     let useNearbyFlag = false;
 
-    // --- Image Preview ---
+    // Image Preview
     const imageInput = document.getElementById('image');
     imageInput.addEventListener('change', function() {
         const [file] = this.files;
@@ -106,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // --- Restaurant Functions ---
+    // Nearby Restaurants Functions
     window.useNearby = function() {
         useNearbyFlag = true;
         document.getElementById('location-section').style.display = 'none';
@@ -193,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
         hideModal();
     };
 
-    // --- Category Autocomplete ---
+    // Category Autocomplete
     const categoryInput = document.getElementById('category_search');
     const categorySelect = document.getElementById('category_id');
     const categorySuggestions = document.getElementById('category_suggestions');
@@ -214,11 +212,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const li = document.createElement('li');
             li.className = 'list-group-item list-group-item-action';
             li.style.cursor = 'pointer';
-
-            // Highlight matched text
             const regex = new RegExp(`(${value})`, 'i');
             li.innerHTML = name.replace(regex, '<mark>$1</mark>');
-
             li.addEventListener('click', () => {
                 categoryInput.value = name;
                 categorySelect.value = categoryMap[name];

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Favorites{% endblock %}
+
+{% block content %}
+<div class="container my-5 text-center">
+    <h1 class="mb-4" style="color:#ff4d6d;">Your Favorite Plates 🍽️</h1>
+
+    {% if plates %}
+        <div class="row justify-content-center g-4">
+            {% for plate in plates %}
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                <div class="card shadow-lg h-100" style="border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #fff3f3, #ffe6e6);">
+                    <img src="{{ plate.image_url }}" class="card-img-top" alt="{{ plate.name }}" style="height: 200px; object-fit: cover;">
+                    <div class="card-body">
+                        <h5 class="fw-bold mb-2">{{ plate.name }} <span class="text-warning">({{ plate.rating }}/5)</span></h5>
+                        <p class="text-muted mb-1">{{ plate.description or '' }}</p>
+                        <small class="text-secondary">{{ plate.restaurant.name if plate.restaurant else 'Unknown restaurant' }}</small>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <button class="btn btn-outline-danger btn-sm" onclick="swipePlate('{{ plate.id }}', 'left')">❌ Dislike</button>
+                        <button class="btn btn-outline-warning btn-sm" onclick="swipePlate('{{ plate.id }}', 'up')">💛 Super Like</button>
+                        <button class="btn btn-outline-success btn-sm" onclick="swipePlate('{{ plate.id }}', 'right')">❤️ Like</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted fs-5 mt-4">You haven't favorited any plates yet. Go rate some delicious food! 🍕🍔🍣</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function swipePlate(plateId, direction) {
+    fetch(`/plate/${plateId}/swipe`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({direction: direction})
+    })
+    .then(() => {
+        // Optional: Remove the card from view after swipe
+        const card = event.target.closest('.card');
+        if(card) card.remove();
+    })
+    .catch(err => console.error(err));
+}
+</script>
+{% endblock %}
