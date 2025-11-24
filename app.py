@@ -10,6 +10,11 @@ from flask_migrate import Migrate
 import requests
 from dotenv import load_dotenv
 from PIL import Image, ExifTags
+from flask_login import current_user, login_required
+from flask_wtf.csrf import CSRFProtect
+
+
+
 
 
 load_dotenv()
@@ -26,6 +31,8 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
+
 
 
 GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '').strip()
@@ -39,8 +46,9 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     plates = db.relationship('Plate', backref='user', lazy=True)
     likes = db.relationship('Like', backref='user', lazy=True)
-    comments = db.relationship('Comment', backref='user', lazy=True)
     user_plates = db.relationship('UserPlate', backref='user', lazy=True)
+    # Remove this:
+    # comments = db.relationship('Comment', backref='user', lazy=True)
 
 class Restaurant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -57,6 +65,7 @@ class Category(db.Model):
     # Only define relationship once
     plates = db.relationship('Plate', back_populates='category', lazy=True)
 
+
 class Plate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -66,12 +75,12 @@ class Plate(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'))
-    comments = db.relationship('Comment', backref='plate', lazy=True)
-    likes = db.relationship('Like', backref='plate', lazy=True)
-    user_plates = db.relationship('UserPlate', backref='plate', lazy=True)
 
-    # Fix relationship
+    user_plates = db.relationship('UserPlate', backref='plate', lazy=True)
+    comments = db.relationship('Comment', back_populates='plate', lazy=True)
+    likes = db.relationship('Like', backref='plate', lazy=True)
     category = db.relationship('Category', back_populates='plates')
+
 
 
 class Like(db.Model):
@@ -84,19 +93,26 @@ class Like(db.Model):
 
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"), nullable=False)
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User")  # no backref to avoid conflicts
+    plate = db.relationship("Plate", back_populates="comments")
+
+
 
 class UserPlate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"))
+    liked = db.Column(db.Boolean, default=False)
     favorite = db.Column(db.Boolean, default=False)
     description = db.Column(db.Text, nullable=True)
     rated = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 # ------------------ Helpers ------------------
 def allowed_file(filename):
@@ -252,20 +268,22 @@ def get_place_details(place_id):
 
     return {}
 
-# ------------------ Routes ------------------
+# ------------------ Home / Search ------------------
 @app.route('/')
 def home():
     category_id = request.args.get('category', type=int)
     location_query = request.args.get('location', '').strip()
-    lat = request.args.get('lat')
-    lon = request.args.get('lon')
-    radius_miles = request.args.get('radius_miles', type=float)
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius_miles = request.args.get('radius', type=float) or 100
+    user_id = session.get('user_id')
 
-    # Base plate query with joined relationships
+    # Base query
     plates_q = Plate.query.options(
         db.joinedload(Plate.restaurant),
         db.joinedload(Plate.category),
-        db.joinedload(Plate.user_plates)
+        db.joinedload(Plate.user_plates),
+        db.joinedload(Plate.comments).joinedload(Comment.user)
     ).order_by(Plate.created_at.desc())
 
     if category_id:
@@ -273,34 +291,32 @@ def home():
 
     plates = plates_q.all()
 
-    # Compute average rating per plate
+    # Compute avg_rating and likes/favorites
     for plate in plates:
-        ratings = [up.rated for up in plate.user_plates if up.rated is not None and up.rated > 0]
-        plate.avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
+        ratings = [up.rated for up in plate.user_plates if up.rated]
+        plate.avg_rating = round(sum(ratings)/len(ratings), 1) if ratings else 0
+        plate.like_count = Like.query.filter_by(plate_id=plate.id).count()
 
-    # Location filtering
-    if (lat and lon) or location_query:
+        if user_id:
+            plate.user_liked = any(up.user_id == user_id for up in plate.user_plates)
+            plate.user_favorited = False  # implement Favorite table check if needed
+
+        # Only keep comments where user exists
+        plate.comments = [c for c in plate.comments if c.user]
+
+    # Location filter
+    if location_query or (lat and lon):
         if not (lat and lon):
-            geolat, geolon = geocode_location(location_query)
-            if geolat is None:
-                categories = Category.query.order_by(Category.name).all()
-                return render_template('home.html', plates=plates, categories=categories)
-            lat, lon = geolat, geolon
-        else:
-            lat, lon = float(lat), float(lon)
-
-        radius_miles = radius_miles or 100
-
+            lat, lon = geocode_location(location_query)
         plates = [
             p for p in plates
-            if p.restaurant
-            and p.restaurant.latitude
-            and p.restaurant.longitude
-            and haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
+            if p.restaurant and p.restaurant.latitude and haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
         ]
 
     categories = Category.query.order_by(Category.name).all()
     return render_template('home.html', plates=plates, categories=categories)
+
+
 
 
 
@@ -751,6 +767,92 @@ def geocode_reverse():
         })
     except:
         return jsonify({'success': False, 'error': 'Could not resolve location'})
+
+
+# ------------------ Like / Favorite / Comment ------------------
+# Toggle Like
+@app.route("/plates/<int:plate_id>/like", methods=["POST"])
+def toggle_like(plate_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "You must be logged in to like plates."}), 403
+
+    plate = Plate.query.get_or_404(plate_id)
+
+    # Find existing UserPlate for this user and plate
+    up = UserPlate.query.filter_by(user_id=user_id, plate_id=plate_id).first()
+
+    if up:
+        # Toggle like
+        up.liked = not up.liked
+    else:
+        # Create a new UserPlate with liked=True
+        up = UserPlate(user_id=user_id, plate_id=plate_id, liked=True)
+        db.session.add(up)
+
+    db.session.commit()
+
+    # Count total likes for this plate
+    like_count = UserPlate.query.filter_by(plate_id=plate_id, liked=True).count()
+
+    return jsonify({
+        "liked": up.liked,
+        "like_count": like_count
+    })
+
+
+# Toggle Favorite
+@app.route("/plates/<int:plate_id>/favorite", methods=["POST"])
+def toggle_favorite(plate_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "You must be logged in to favorite plates."}), 403
+
+    plate = Plate.query.get_or_404(plate_id)
+
+    # Find existing UserPlate for this user and plate
+    up = UserPlate.query.filter_by(user_id=user_id, plate_id=plate_id).first()
+
+    if up:
+        # Toggle favorite
+        up.favorite = not up.favorite
+    else:
+        # Create a new UserPlate with favorite=True
+        up = UserPlate(user_id=user_id, plate_id=plate_id, favorite=True)
+        db.session.add(up)
+
+    db.session.commit()
+
+    return jsonify({
+        "favorited": up.favorite
+    })
+
+
+@app.route("/plates/<int:plate_id>/comment", methods=["POST"])
+def add_comment(plate_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Login required"}), 403
+
+    data = request.get_json()
+    text = data.get("text", "").strip()
+    if not text:
+        return jsonify({"error": "Comment cannot be empty"}), 400
+
+    plate = Plate.query.get_or_404(plate_id)
+
+    comment = Comment(user_id=user_id, plate_id=plate_id, text=text)
+    db.session.add(comment)
+    db.session.commit()
+
+    return jsonify({
+        "id": comment.id,
+        "username": session.get("username"),
+        "text": comment.text,
+        "created_at": comment.created_at.strftime("%Y-%m-%d %H:%M")
+    })
+
+
 
 
 # ------------------ App Startup ------------------

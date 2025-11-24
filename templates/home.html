@@ -4,236 +4,188 @@
 
 {% block head %}
 <style>
-/* ---------- GLOBAL LOOK ---------- */
-body {
-    background: linear-gradient(135deg, #f6f8fd, #eef1f7);
-}
-
-/* ---------- PAGE TITLE ---------- */
-.page-title {
-    font-weight: 800;
-    font-size: 2.3rem;
-    text-align: center;
-    margin-bottom: 32px;
-    background: linear-gradient(90deg, #ff6363, #ff995e);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* ---------- CARD STYLE ---------- */
-.plate-card {
-    position: relative;
-    border-radius: 20px;
-    overflow: hidden;
-    background: #ffffff;
-    border: 1px solid #eaeaea;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.07);
-    transition: transform 0.2s ease, box-shadow 0.25s ease;
-}
-.plate-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 14px 40px rgba(0,0,0,0.14);
-}
-
-/* ---------- CATEGORY BANNER ---------- */
-.category-banner {
-    position: absolute;
-    top: 14px;
-    left: -6px;
-    background: linear-gradient(90deg, #ff5e57, #ff8557);
-    padding: 6px 14px;
-    color: white;
-    font-weight: 700;
-    font-size: 0.85rem;
-    border-radius: 0 12px 12px 0;
-    clip-path: polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%);
-    z-index: 10;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
-}
-
-/* ---------- PLATE IMAGE ---------- */
-.plate-img {
-    width: 100%;
-    height: 250px;
-    object-fit: cover;
-    transition: transform 0.30s ease;
-}
-.plate-card:hover .plate-img {
-    transform: scale(1.06);
-}
-
-/* ---------- CONTENT ---------- */
-.plate-body {
-    padding: 20px;
-}
-
-.plate-title {
-    font-size: 1.25rem;
-    font-weight: 800;
-    margin-bottom: 6px;
-}
-
-.plate-restaurant {
-    font-size: 0.96rem;
-    color: #777;
-}
-
-/* ---------- STAR RATING ---------- */
-.star-display {
-    color: #ffb400;
-    font-size: 1.1rem;
-}
-.star-display .inactive {
-    color: #ccc;
-}
-
-.description-text {
-    color: #555;
-    font-size: 0.97rem;
-    margin-top: 8px;
-}
-
-/* ---------- SEARCH BOX STYLE ---------- */
-.search-box {
-    background: #ffffff;
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 3px 20px rgba(0,0,0,0.07);
-    border: 1px solid #e0e0e0;
-}
-
-.search-box label {
-    font-weight: 600;
-    margin-bottom: 4px;
-}
-
-.btn-primary {
-    border-radius: 12px !important;
-    padding: 10px !important;
-    font-weight: 600;
-}
-
-.btn-secondary {
-    border-radius: 12px !important;
-    padding: 10px !important;
-}
+/* Keep your previous card/comment styling here */
+.page-title { font-weight:800; font-size:2.3rem; text-align:center; margin-bottom:32px; background: linear-gradient(90deg,#ff6363,#ff995e); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.plate-card { border-radius:20px; overflow:hidden; background:#fff; border:1px solid #eaeaea; box-shadow:0 8px 30px rgba(0,0,0,0.07); transition: transform 0.2s ease, box-shadow 0.25s ease; }
+.plate-card:hover { transform:translateY(-6px); box-shadow:0 14px 40px rgba(0,0,0,0.14); }
+.plate-img { width:100%; height:250px; object-fit:cover; transition:transform 0.3s ease; }
+.plate-card:hover .plate-img { transform:scale(1.06); }
+.plate-body { padding:20px; }
+.plate-title { font-size:1.25rem; font-weight:800; margin-bottom:6px; }
+.plate-restaurant { font-size:0.96rem; color:#777; }
+.star-display { color:#ffb400; font-size:1.1rem; }
+.star-display .inactive { color:#ccc; }
+.description-text { color:#555; font-size:0.97rem; margin-top:8px; }
+.plate-actions { margin-top:10px; display:flex; gap:12px; }
+.plate-actions button { border-radius:12px; font-weight:600; }
+.comment-section { margin-top:15px; border-top:1px solid #eee; padding-top:10px; }
+.comment { display:flex; gap:10px; margin-bottom:6px; }
+.comment-avatar { width:30px; height:30px; border-radius:50%; background:#ff995e; color:#fff; font-weight:700; display:flex; justify-content:center; align-items:center; font-size:0.85rem; }
+.comment-text { background:#f1f3f6; padding:6px 10px; border-radius:12px; font-size:0.9rem; }
+.comment-toggle { color:#007bff; cursor:pointer; font-size:0.85rem; }
+.new-comment input { width:100%; }
 </style>
 {% endblock %}
 
-
 {% block content %}
-<div class="container">
+<h1 class="page-title">Plate Feed</h1>
 
-    <h1 class="page-title">Plate Feed</h1>
-
-    <!-- ---------- SEARCH BOX ---------- -->
-    <form method="get" action="{{ url_for('search_plates') }}" class="mb-5">
-        <div class="search-box">
-            <div class="row g-3 align-items-end">
-
-                <div class="col-md-4">
-                    <label>City / State / ZIP</label>
-                    <input type="text" class="form-control" name="location"
-                           placeholder="e.g. Dover, NH"
-                           value="{{ request.args.get('location','') }}">
-                </div>
-
-                <div class="col-md-2">
-                    <label>Radius (miles)</label>
-                    <input type="number" class="form-control" name="radius"
-                           value="{{ request.args.get('radius',10) }}" min="1">
-                </div>
-
-                <div class="col-md-3">
-                    <label>Category</label>
-                    <select class="form-select" name="category_id">
-                        <option value="">All Categories</option>
-                        {% for cat in categories %}
-                            <option value="{{ cat.id }}"
-                                {% if request.args.get('category_id') == cat.id|string %}selected{% endif %}>
-                                {{ cat.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="col-md-3 d-grid">
-                    <button class="btn btn-primary">Search Plates</button>
-                    <a href="{{ url_for('search_plates') }}"
-                       class="btn btn-secondary mt-2">Show All Plates</a>
-                </div>
-
+<!-- Search box -->
+<form method="get" action="{{ url_for('search_plates') }}" class="mb-5">
+    <div class="search-box p-3 mb-4 border rounded shadow-sm bg-white">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label>City / State / ZIP</label>
+                <input type="text" class="form-control" name="location" value="{{ request.args.get('location','') }}">
+            </div>
+            <div class="col-md-2">
+                <label>Radius (miles)</label>
+                <input type="number" class="form-control" name="radius" value="{{ request.args.get('radius',10) }}" min="1">
+            </div>
+            <div class="col-md-3">
+                <label>Category</label>
+                <select class="form-select" name="category_id">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if request.args.get('category_id') == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button class="btn btn-primary">Search Plates</button>
+                <a href="{{ url_for('search_plates') }}" class="btn btn-secondary mt-2">Show All Plates</a>
             </div>
         </div>
-    </form>
+    </div>
+</form>
 
-    {% if error %}
-        <div class="alert alert-warning">{{ error }}</div>
-    {% endif %}
+<div class="row justify-content-center">
+    {% for plate in plates %}
+    <div class="col-12 col-md-6 col-lg-4 mb-4">
+        <div class="plate-card">
+            {% if plate.category %}<div class="category-banner">{{ plate.category.name }}</div>{% endif %}
+            <img src="{{ plate.image_url or url_for('static','uploads/placeholder.png') }}" class="plate-img">
 
-    <!-- ---------- PLATE LIST ---------- -->
-    <div class="row justify-content-center">
+            <div class="plate-body">
+                <h5 class="plate-title">{{ plate.name }}</h5>
+                <small class="text-muted">
+                    Posted {{ plate.created_at.strftime('%b %d, %Y %I:%M %p') }} by
+                    {% if plate.user %}
+                        {{ plate.user.username }}
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="followUser({{ plate.user.id }}, this)">
+                            {% if plate.user_followed %}Following{% else %}Follow{% endif %}
+                        </button>
+                    {% else %}Anonymous{% endif %}
+                </small>
 
-        {% for plate in plates %}
-        <div class="col-12 col-md-6 col-lg-4 mb-4">
-            <div class="plate-card">
+                <div class="star-display mb-2">
+                    {% set avg = plate.avg_rating or 0 %}
+                    {% for i in range(1,6) %}
+                        {% if i <= avg|round(0,'floor') %}&#9733;{% else %}<span class="inactive">&#9733;</span>{% endif %}
+                    {% endfor %}
+                    <span class="text-muted small">({{ avg }}/5)</span>
+                </div>
 
-                {% if plate.category %}
-                <div class="category-banner">{{ plate.category.name }}</div>
-                {% endif %}
+                <p class="description-text">{{ plate.description or "No description." }}</p>
 
-                <img src="{{ plate.image_url }}" class="plate-img" alt="{{ plate.name }}">
+                <div class="plate-actions">
+                    <button class="btn btn-outline-primary btn-sm" onclick="toggleLike({{ plate.id }}, this)">
+                        Like ({{ plate.like_count or 0 }})
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="toggleFavorite({{ plate.id }}, this)">
+                        {% if plate.user_favorited %}Favorited{% else %}Favorite{% endif %}
+                    </button>
+                </div>
 
-                <div class="plate-body">
-                    <h5 class="plate-title">{{ plate.name }}</h5>
-
-                    <!-- STAR RATING -->
-                    <div class="star-display mb-2">
-                        {% set avg = plate.avg_rating if plate.avg_rating is defined else 0 %}
-                        {% for i in range(1,6) %}
-                            {% if i <= avg|round(0,'floor') %}
-                                &#9733;
-                            {% else %}
-                                <span class="inactive">&#9733;</span>
-                            {% endif %}
-                        {% endfor %}
-                        <span class="text-muted small">({{ avg }}/5)</span>
-                    </div>
-
-                    <p class="description-text">{{ plate.description or "No description provided." }}</p>
-
-                    {% if plate.restaurant %}
-                    <div class="text-muted small mt-2">
-                        <strong>Restaurant:</strong> {{ plate.restaurant.name }}<br>
-
-                        {% if plate.restaurant.latitude and plate.restaurant.longitude %}
-                            <a href="https://www.google.com/maps/dir/?api=1&destination={{ plate.restaurant.latitude }},{{ plate.restaurant.longitude }}"
-                               target="_blank" rel="noopener">
-                               {{ plate.restaurant.address }}
-                            </a>
-                        {% else %}
-                            {{ plate.restaurant.address }}
+                <!-- Comments -->
+                <div class="comment-section">
+                    {% if plate.comments %}
+                        {% set first_comment = plate.comments[0] %}
+                        <div class="comment">
+                            <div class="comment-avatar">{{ first_comment.user.username[0]|upper if first_comment.user else '?' }}</div>
+                            <div class="comment-text">{{ first_comment.text }}</div>
+                        </div>
+                        {% if plate.comments|length > 1 %}
+                            <div class="comment-toggle" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">
+                                Show {{ plate.comments|length -1 }} more comment(s)
+                            </div>
+                            <div style="display:none;">
+                                {% for c in plate.comments[1:] %}
+                                <div class="comment">
+                                    <div class="comment-avatar">{{ c.user.username[0]|upper if c.user else '?' }}</div>
+                                    <div class="comment-text">{{ c.text }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
                         {% endif %}
+                    {% else %}
+                        <p class="text-muted small">No comments yet.</p>
+                    {% endif %}
 
-                        <br>
-
-                        {% if plate.restaurant.website %}
-                            {% set domain = plate.restaurant.website.split("//")[-1].split("/")[0] %}
-                            <strong>Website:</strong>
-                            <a href="{{ plate.restaurant.website }}" target="_blank">{{ domain }}</a>
-                        {% endif %}
+                    {% if session.get('user_id') %}
+                    <div class="new-comment mt-2">
+                        <input type="text" class="form-control form-control-sm" placeholder="Add a comment..." data-plate="{{ plate.id }}">
+                        <button class="btn btn-sm btn-primary mt-1" onclick="submitComment(this)">Post</button>
                     </div>
                     {% endif %}
                 </div>
             </div>
         </div>
-
-        {% else %}
-        <div class="col-12">
-            <p class="text-center text-muted">No plates found for your search.</p>
-        </div>
-        {% endfor %}
-
     </div>
+    {% else %}
+    <div class="col-12 text-center text-muted">No plates found.</div>
+    {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function submitComment(btn) {
+    const input = btn.previousElementSibling;
+    const text = input.value.trim();
+    const plateId = input.dataset.plate;
+    if(!text) return;
+    fetch(`/plates/${plateId}/comment`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
+        body:JSON.stringify({text})
+    }).then(r=>r.json()).then(data=>{
+        if(data.error){ showToast(data.error,'danger'); return; }
+        const html=`<div class="comment"><div class="comment-avatar">${data.username[0].toUpperCase()}</div><div class="comment-text">${data.text}</div></div>`;
+        btn.closest('.comment-section').insertAdjacentHTML('beforeend',html);
+        input.value='';
+        showToast('Comment posted!');
+    });
+}
+
+function toggleLike(plateId, btn){
+    fetch(`/plates/${plateId}/like`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
+    }).then(r=>r.json()).then(data=>{
+        btn.textContent=`Like (${data.like_count})`;
+        showToast(data.liked?'Liked!':'Unliked!');
+    });
+}
+
+function toggleFavorite(plateId, btn){
+    fetch(`/plates/${plateId}/favorite`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
+    }).then(r=>r.json()).then(data=>{
+        btn.textContent = data.favorited?'Favorited':'Favorite';
+        showToast(data.favorited?'Added to favorites!':'Removed from favorites!');
+    });
+}
+
+function followUser(userId, btn){
+    fetch(`/users/${userId}/follow`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
+    }).then(r=>r.json()).then(data=>{
+        btn.textContent = data.following?'Following':'Follow';
+        showToast(data.following?'You are now following!':'Unfollowed.');
+    });
+}
+</script>
 {% endblock %}
