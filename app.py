@@ -328,6 +328,7 @@ def home():
 
 
 @app.route('/plates')
+@csrf.exempt
 def search_plates():
     try:
         # --- Query params ---
@@ -427,6 +428,7 @@ def logout():
 
 # ------------------ Plate Creation ------------------
 @app.route('/create_plate', methods=['GET','POST'])
+@csrf.exempt
 def create_plate():
     if 'user_id' not in session:
         flash("Login required","error")
@@ -475,6 +477,7 @@ def create_plate():
 
 # ------------------ Nearby Restaurants ------------------
 @app.route('/nearby_restaurants')
+@csrf.exempt
 def nearby_restaurants():
     """
     Return nearby restaurants based on lat/lon or location query.
@@ -591,6 +594,7 @@ def nearby_restaurants():
 
 
 @app.route('/add_restaurant', methods=['POST'])
+@csrf.exempt
 def add_restaurant():
     if 'user_id' not in session:
         return jsonify({'success': False, 'error': 'Login required'}), 403
@@ -621,6 +625,7 @@ def add_restaurant():
 
 # ------------------ Play / Swipe ------------------
 @app.route('/play')
+@csrf.exempt
 def play():
     plates = Plate.query.order_by(Plate.created_at.desc()).limit(10).all()
     plates_data = [{"id":p.id,
@@ -632,6 +637,7 @@ def play():
     return render_template('play.html', plates=plates_data)
 
 @app.route('/get_plates_nearby')
+@csrf.exempt
 def get_plates_nearby():
     lat=request.args.get('lat')
     lon=request.args.get('lon')
@@ -644,6 +650,7 @@ def get_plates_nearby():
     return jsonify({'plates':plates_list})
 
 @app.route('/plate/<int:plate_id>/play_action', methods=['POST'])
+@csrf.exempt
 def play_action(plate_id):
     if 'user_id' not in session:
         return jsonify({'error':'not logged in'}),403
@@ -656,6 +663,7 @@ def play_action(plate_id):
     return jsonify({'status':'ok','action':action})
 
 @app.route('/plate/<int:plate_id>/swipe', methods=['POST'])
+@csrf.exempt
 def plate_swipe(plate_id):
     data=request.get_json(force=True, silent=True) or {}
     print(f"Swipe: user={session.get('user_id')} plate={plate_id} dir={data.get('direction')}")
@@ -665,6 +673,7 @@ def plate_swipe(plate_id):
 from sqlalchemy import or_
 
 @app.route('/my_plates')
+@csrf.exempt
 def my_plates():
     if 'user_id' not in session:
         flash("Login required", "error")
@@ -694,6 +703,7 @@ def my_plates():
 
 
 @app.route('/favorites')
+@csrf.exempt
 def favorites():
     if 'user_id' not in session:
         flash("Login required", "error")
@@ -703,6 +713,7 @@ def favorites():
     return render_template('favorites.html', plates=favs)
 
 @app.route("/unrated_plates")
+@csrf.exempt
 def unrated_plates():
     if 'user_id' not in session:
         flash("Login required","error")
@@ -728,6 +739,7 @@ def unrated_plates():
 
 
 @app.route("/rate_plate/<int:plate_id>", methods=["GET", "POST"])
+@csrf.exempt
 def rate_plate(plate_id):
     if 'user_id' not in session:
         flash("Login required", "error")
@@ -758,6 +770,7 @@ def rate_plate(plate_id):
     return render_template("rate_plate.html", plate=plate, user_plate=user_plate)
 
 @app.route('/geocode_reverse')
+@csrf.exempt
 def geocode_reverse():
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
@@ -781,6 +794,7 @@ def geocode_reverse():
 # ------------------ Like / Favorite / Comment ------------------
 # Toggle Like
 @app.route("/plates/<int:plate_id>/like", methods=["POST"])
+@csrf.exempt
 def toggle_like(plate_id):
     user_id = session.get("user_id")
     if not user_id:
@@ -812,6 +826,7 @@ def toggle_like(plate_id):
 
 # Toggle Favorite
 @app.route("/plates/<int:plate_id>/favorite", methods=["POST"])
+@csrf.exempt
 def toggle_favorite(plate_id):
     user_id = session.get("user_id")
     if not user_id:
@@ -838,6 +853,7 @@ def toggle_favorite(plate_id):
 
 
 @app.route("/plates/<int:plate_id>/comment", methods=["POST"])
+@csrf.exempt
 def add_comment(plate_id):
     user_id = session.get("user_id")
     if not user_id:
