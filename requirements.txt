@@ -38,3 +38,5 @@ flask_migrate
 gunicorn
 dotenv
 Flask-WTF
+Flask-Login
+
