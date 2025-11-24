@@ -17,6 +17,7 @@ from flask_wtf.csrf import CSRFProtect
 
 
 
+
 load_dotenv()
 
 # ------------------ App Setup ------------------
@@ -26,12 +27,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+csrf = CSRFProtect(app)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-csrf = CSRFProtect(app)
+
 
 
 
@@ -268,6 +270,11 @@ def get_place_details(place_id):
 
     return {}
 
+
+
+
+
+
 # ------------------ Home / Search ------------------
 @app.route('/')
 def home():
@@ -376,6 +383,7 @@ def search_plates():
 
 # ------------------ Auth ------------------
 @app.route('/register', methods=['GET','POST'])
+@csrf.exempt
 def register():
     if request.method=='POST':
         username = request.form.get('username','').strip()
@@ -397,6 +405,7 @@ def register():
     return render_template('register.html')
 
 @app.route('/login', methods=['GET','POST'])
+@csrf.exempt
 def login():
     if request.method=='POST':
         email=request.form.get('email','').strip().lower()
