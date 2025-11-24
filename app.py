@@ -11,6 +11,7 @@ import requests
 from dotenv import load_dotenv
 from PIL import Image, ExifTags
 
+
 load_dotenv()
 
 # ------------------ App Setup ------------------
@@ -231,14 +232,16 @@ def schedule_email_for_rating(plate_id, user_id):
     pass
 
 def get_place_details(place_id):
-    api_key = YOUR_GOOGLE_API_KEY
+    api_key = GOOGLE_PLACES_API_KEY
+    if not api_key:
+        return {}
+
     url = (
-        f"https://maps.googleapis.com/maps/api/place/details/json?"
-        f"place_id={place_id}&fields=name,formatted_address,website&key={api_key}"
+        "https://maps.googleapis.com/maps/api/place/details/json"
+        f"?place_id={place_id}&fields=name,formatted_address,website&key={api_key}"
     )
 
     response = requests.get(url).json()
-
     if response.get("status") == "OK":
         result = response.get("result", {})
         return {
@@ -248,6 +251,7 @@ def get_place_details(place_id):
         }
 
     return {}
+
 # ------------------ Routes ------------------
 @app.route('/')
 def home():
@@ -313,7 +317,8 @@ def search_plates():
 
         # Compute avg_rating for each plate
         for plate in plates:
-            ratings = [r.rating for r in plate.ratings] if hasattr(plate, 'ratings') else []
+            ratings = [up.rated for up in plate.user_plates if up.rated and up.rated > 0]
+            plate.avg_rating = sum(ratings) / len(ratings) if ratings else 0
             plate.avg_rating = sum(ratings) / len(ratings) if ratings else 0
 
         filtered_plates = plates
@@ -632,14 +637,36 @@ def plate_swipe(plate_id):
     return jsonify({'status':'ok'})
 
 # ------------------ User Plates ------------------
+from sqlalchemy import or_
+
 @app.route('/my_plates')
 def my_plates():
     if 'user_id' not in session:
-        flash("Login required","error")
+        flash("Login required", "error")
         return redirect(url_for('login'))
-    user_id=session['user_id']
-    unrated=db.session.query(Plate).join(UserPlate, (UserPlate.plate_id==Plate.id)&(UserPlate.user_id==user_id), isouter=True).filter((UserPlate.rated==False)|(UserPlate.rated==None)).all()
+
+    user_id = session['user_id']
+
+    # Get all plates for this user where rated = 0 or NULL
+    unrated = (
+        db.session.query(Plate)
+        .join(
+            UserPlate,
+            (UserPlate.plate_id == Plate.id) &
+            (UserPlate.user_id == user_id),
+            isouter=True
+        )
+        .filter(
+            or_(
+                UserPlate.rated == 0,
+                UserPlate.rated.is_(None)
+            )
+        )
+        .all()
+    )
+
     return render_template('my_plates.html', plates=unrated)
+
 
 @app.route('/favorites')
 def favorites():
@@ -704,6 +731,26 @@ def rate_plate(plate_id):
         return redirect(url_for("unrated_plates"))
 
     return render_template("rate_plate.html", plate=plate, user_plate=user_plate)
+
+@app.route('/geocode_reverse')
+def geocode_reverse():
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    if lat is None or lon is None:
+        return jsonify({'success': False, 'error': 'Missing lat/lon'})
+
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&addressdetails=1"
+        r = requests.get(url, headers={'User-Agent':'plater8te-app/1.0'}, timeout=6).json()
+        addr = r.get('address', {})
+        return jsonify({
+            'success': True,
+            'address': addr.get('road') or '',
+            'city': addr.get('city') or addr.get('town') or addr.get('village') or '',
+            'state': addr.get('state') or ''
+        })
+    except:
+        return jsonify({'success': False, 'error': 'Could not resolve location'})
 
 
 # ------------------ App Startup ------------------

@@ -8,21 +8,33 @@
 
     <form method="POST" enctype="multipart/form-data" id="plate-form">
 
-        <!-- Nearby Restaurants -->
+        <!-- Restaurant Selection -->
         <div class="mb-3">
-            <label class="form-label">Select Restaurant</label>
+            <label class="form-label">Restaurant</label>
 
             <div class="d-flex flex-column flex-sm-row gap-2 mb-2">
                 <button type="button" class="btn btn-outline-primary flex-grow-1" onclick="useNearby()">Nearby Restaurants</button>
                 <button type="button" class="btn btn-outline-secondary flex-grow-1" onclick="useLocationInput()">Search by Zip or City</button>
+                <button type="button" class="btn btn-outline-success flex-grow-1" onclick="showAddRestaurant()">Add New Restaurant</button>
             </div>
 
+            <!-- Location search -->
             <div id="location-section" class="mb-2" style="display:none;">
                 <input type="text" id="location-input" class="form-control mb-2" placeholder="Enter zip code or city">
                 <button type="button" class="btn btn-primary w-100 mb-2" onclick="fetchRestaurants()">Search</button>
             </div>
 
-            <!-- Hidden inputs for restaurant data -->
+            <!-- Add new restaurant -->
+            <div id="add-restaurant-section" class="mb-2" style="display:none;">
+                <input type="text" id="new_restaurant_name" class="form-control mb-2" placeholder="Restaurant Name">
+                <input type="text" id="new_restaurant_address" class="form-control mb-2" placeholder="Address">
+                <input type="text" id="new_restaurant_city" class="form-control mb-2" placeholder="City">
+                <input type="text" id="new_restaurant_state" class="form-control mb-2" placeholder="State">
+                <button type="button" class="btn btn-primary w-100 mb-2" onclick="useMyLocationForNewRestaurant()">Use My Current Location</button>
+                <button type="button" class="btn btn-secondary w-100" onclick="selectNewRestaurant()">Select This Restaurant</button>
+            </div>
+
+            <!-- Hidden inputs for form submission -->
             <input type="hidden" name="restaurant_name" id="restaurant_name">
             <input type="hidden" name="restaurant_address" id="restaurant_address">
             <input type="hidden" name="restaurant_latitude" id="restaurant_latitude">
@@ -104,17 +116,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Nearby Restaurants Functions
+    // Show modal
+    function showModal() {
+        const modal = new bootstrap.Modal(document.getElementById('restaurantModal'));
+        modal.show();
+    }
+    function hideModal() {
+        const modalEl = document.getElementById('restaurantModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+    }
+
+    // Nearby Restaurants
     window.useNearby = function() {
         useNearbyFlag = true;
         document.getElementById('location-section').style.display = 'none';
-        showModal();
+        document.getElementById('add-restaurant-section').style.display = 'none';
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
                 lat = pos.coords.latitude;
                 lon = pos.coords.longitude;
+                showModal();
                 fetchRestaurants();
-            }, () => alert('Unable to get your location.'));
+            }, () => alert('Unable to get your location. Please allow location access.'));
         } else {
             alert('Geolocation is not supported by this browser.');
         }
@@ -123,18 +147,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.useLocationInput = function() {
         useNearbyFlag = false;
         document.getElementById('location-section').style.display = 'block';
+        document.getElementById('add-restaurant-section').style.display = 'none';
     };
-
-    function showModal() {
-        const modal = new bootstrap.Modal(document.getElementById('restaurantModal'));
-        modal.show();
-    }
-
-    function hideModal() {
-        const modalEl = document.getElementById('restaurantModal');
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if(modal) modal.hide();
-    }
 
     window.fetchRestaurants = function() {
         const urlBase = '/nearby_restaurants';
@@ -160,12 +174,10 @@ document.addEventListener('DOMContentLoaded', function() {
             loading.classList.add('d-none');
             listEl.classList.remove('d-none');
             listEl.innerHTML = '';
-
-            if(data.error) {
+            if(data.error){
                 listEl.innerHTML = `<li class="list-group-item text-danger">${data.error}</li>`;
                 return;
             }
-
             data.restaurants.forEach(r => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item list-group-item-action';
@@ -174,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 li.addEventListener('click', () => selectRestaurant(r));
                 listEl.appendChild(li);
             });
-        }).catch(err => {
+        }).catch(err=>{
             loading.classList.add('d-none');
             listEl.classList.remove('d-none');
             listEl.innerHTML = `<li class="list-group-item text-danger">Error fetching restaurants</li>`;
@@ -182,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    window.selectRestaurant = function(r) {
+    window.selectRestaurant = function(r){
         document.getElementById('restaurant_name').value = r.name;
         document.getElementById('restaurant_address').value = r.address;
         document.getElementById('restaurant_latitude').value = r.latitude;
@@ -191,46 +203,74 @@ document.addEventListener('DOMContentLoaded', function() {
         hideModal();
     };
 
+    // Add New Restaurant
+    window.showAddRestaurant = function(){
+        document.getElementById('add-restaurant-section').style.display = 'block';
+        document.getElementById('location-section').style.display = 'none';
+        document.getElementById('restaurant-list').style.display = 'none';
+        document.getElementById('restaurant-loading').classList.add('d-none');
+    };
+
+    window.useMyLocationForNewRestaurant = function() {
+        if(navigator.geolocation){
+            navigator.geolocation.getCurrentPosition(async pos=>{
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const resp = await fetch(`/geocode_reverse?lat=${lat}&lon=${lon}`);
+                const data = await resp.json();
+                if(data.success){
+                    document.getElementById('new_restaurant_address').value = data.address || '';
+                    document.getElementById('new_restaurant_city').value = data.city || '';
+                    document.getElementById('new_restaurant_state').value = data.state || '';
+                    document.getElementById('restaurant_latitude').value = lat;
+                    document.getElementById('restaurant_longitude').value = lon;
+                } else alert('Could not resolve your location.');
+            }, err => alert('Please allow location access.'));
+        } else alert('Geolocation is not supported by your browser.');
+    };
+
+    window.selectNewRestaurant = function(){
+        const name = document.getElementById('new_restaurant_name').value.trim();
+        const address = document.getElementById('new_restaurant_address').value.trim();
+        const city = document.getElementById('new_restaurant_city').value.trim();
+        const state = document.getElementById('new_restaurant_state').value.trim();
+        if(!name || !address || !city || !state) return alert('Please fill all fields.');
+        document.getElementById('restaurant_name').value = name;
+        document.getElementById('restaurant_address').value = `${address}, ${city}, ${state}`;
+        document.getElementById('selected-restaurant').textContent = `Selected: ${name}`;
+        document.getElementById('add-restaurant-section').style.display = 'none';
+    };
+
     // Category Autocomplete
     const categoryInput = document.getElementById('category_search');
     const categorySelect = document.getElementById('category_id');
     const categorySuggestions = document.getElementById('category_suggestions');
-
     const categoryMap = {};
-    Array.from(categorySelect.options).forEach(opt => {
-        if(opt.value) categoryMap[opt.text] = opt.value;
-    });
+    Array.from(categorySelect.options).forEach(opt => { if(opt.value) categoryMap[opt.text] = opt.value; });
 
-    categoryInput.addEventListener('input', function() {
+    categoryInput.addEventListener('input', function(){
         const value = this.value.toLowerCase();
         categorySuggestions.innerHTML = '';
-
         const matches = Object.keys(categoryMap).filter(name => name.toLowerCase().includes(value));
-        if(!matches.length) return categorySuggestions.style.display = 'none';
-
-        matches.forEach(name => {
+        if(!matches.length) return categorySuggestions.style.display='none';
+        matches.forEach(name=>{
             const li = document.createElement('li');
-            li.className = 'list-group-item list-group-item-action';
-            li.style.cursor = 'pointer';
+            li.className='list-group-item list-group-item-action';
+            li.style.cursor='pointer';
             const regex = new RegExp(`(${value})`, 'i');
-            li.innerHTML = name.replace(regex, '<mark>$1</mark>');
-            li.addEventListener('click', () => {
-                categoryInput.value = name;
-                categorySelect.value = categoryMap[name];
-                categorySuggestions.style.display = 'none';
-            });
+            li.innerHTML = name.replace(regex,'<mark>$1</mark>');
+            li.addEventListener('click', ()=>{categoryInput.value=name; categorySelect.value=categoryMap[name]; categorySuggestions.style.display='none';});
             categorySuggestions.appendChild(li);
         });
-
-        categorySuggestions.style.display = 'block';
-        categorySuggestions.firstChild.scrollIntoView({block:"nearest"});
+        categorySuggestions.style.display='block';
     });
 
-    document.addEventListener('click', e => {
-        if(!categoryInput.contains(e.target) && !categorySuggestions.contains(e.target)) {
-            categorySuggestions.style.display = 'none';
+    document.addEventListener('click', e=>{
+        if(!categoryInput.contains(e.target) && !categorySuggestions.contains(e.target)){
+            categorySuggestions.style.display='none';
         }
     });
+
 });
 </script>
 {% endblock %}
