@@ -80,30 +80,7 @@
           <div class="spinner-border text-primary" role="status"></div>
           <p>Loading nearby restaurants...</p>
         </div>
-        <ul id="restaurant-list" class="list-group"></ul>
-
-        <!-- Add Restaurant Form (hidden initially) -->
-        <div id="add-restaurant-section" class="mt-3" style="display:none;">
-            <h6>Add a New Restaurant</h6>
-            <div class="mb-2">
-                <input type="text" id="new_restaurant_name" class="form-control" placeholder="Restaurant Name">
-            </div>
-            <div class="mb-2">
-                <input type="text" id="new_restaurant_address" class="form-control" placeholder="Address">
-            </div>
-            <div class="mb-2">
-                <input type="text" id="new_restaurant_city" class="form-control" placeholder="City">
-            </div>
-            <div class="mb-2">
-                <input type="text" id="new_restaurant_state" class="form-control" placeholder="State">
-            </div>
-            <div class="mb-2">
-                <input type="text" id="new_restaurant_website" class="form-control" placeholder="Website (Optional)">
-            </div>
-            <button type="button" class="btn btn-success w-100" onclick="addRestaurant()">Add Restaurant</button>
-        </div>
-
-        <button type="button" class="btn btn-link mt-2" id="show-add-restaurant">Can't find your restaurant? Add it</button>
+        <ul id="restaurant-list" class="list-group d-none"></ul>
       </div>
     </div>
   </div>
@@ -115,7 +92,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     let lat, lon;
     let useNearbyFlag = false;
-    let cachedRestaurants = [];
 
     // Image Preview
     const imageInput = document.getElementById('image');
@@ -128,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Nearby Restaurants
+    // Nearby Restaurants Functions
     window.useNearby = function() {
         useNearbyFlag = true;
         document.getElementById('location-section').style.display = 'none';
@@ -138,7 +114,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 lat = pos.coords.latitude;
                 lon = pos.coords.longitude;
                 fetchRestaurants();
-                prefillAddress(lat, lon);
             }, () => alert('Unable to get your location.'));
         } else {
             alert('Geolocation is not supported by this browser.');
@@ -153,8 +128,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function showModal() {
         const modal = new bootstrap.Modal(document.getElementById('restaurantModal'));
         modal.show();
-        document.getElementById('restaurant-loading').classList.remove('d-none');
-        document.getElementById('restaurant-list').classList.add('d-none');
     }
 
     function hideModal() {
@@ -164,11 +137,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.fetchRestaurants = function() {
-        let url = '/nearby_restaurants';
+        const urlBase = '/nearby_restaurants';
+        let url = urlBase;
         if (!useNearbyFlag) {
             const loc = document.getElementById('location-input').value.trim();
             if (!loc) return alert('Please enter a location.');
             url += `?location=${encodeURIComponent(loc)}`;
+            showModal();
         } else {
             url += `?lat=${lat}&lon=${lon}`;
         }
@@ -177,6 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const listEl = document.getElementById('restaurant-list');
         loading.classList.remove('d-none');
         listEl.classList.add('d-none');
+        listEl.innerHTML = '';
 
         fetch(url)
         .then(res => res.json())
@@ -190,15 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Filter fast food
-            cachedRestaurants = data.restaurants.filter(r => !/mcdonald|burger king|wendy's|taco bell|dunkin/i.test(r.name));
-
-            if(cachedRestaurants.length === 0) {
-                listEl.innerHTML = `<li class="list-group-item">No restaurants found.</li>`;
-                return;
-            }
-
-            cachedRestaurants.forEach(r => {
+            data.restaurants.forEach(r => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item list-group-item-action';
                 li.style.cursor = 'pointer';
@@ -221,42 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('restaurant_longitude').value = r.longitude;
         document.getElementById('selected-restaurant').textContent = `Selected: ${r.name}`;
         hideModal();
-    };
-
-    // Show Add Restaurant Form
-    document.getElementById('show-add-restaurant').addEventListener('click', () => {
-        document.getElementById('add-restaurant-section').style.display = 'block';
-        document.getElementById('show-add-restaurant').style.display = 'none';
-    });
-
-    function prefillAddress(lat, lon) {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-        .then(res => res.json())
-        .then(data => {
-            const addr = data.address || {};
-            document.getElementById('new_restaurant_address').value = addr.road || '';
-            document.getElementById('new_restaurant_city').value = addr.city || addr.town || addr.village || '';
-            document.getElementById('new_restaurant_state').value = addr.state || '';
-        }).catch(err => console.error('Prefill address failed:', err));
-    }
-
-    window.addRestaurant = function() {
-        const name = document.getElementById('new_restaurant_name').value.trim();
-        const address = document.getElementById('new_restaurant_address').value.trim();
-        const city = document.getElementById('new_restaurant_city').value.trim();
-        const state = document.getElementById('new_restaurant_state').value.trim();
-        const website = document.getElementById('new_restaurant_website').value.trim();
-
-        if(!name || !address || !city || !state) return alert('Please fill in all required fields.');
-
-        const fullAddress = `${address}, ${city}, ${state}`;
-
-        document.getElementById('restaurant_name').value = name;
-        document.getElementById('restaurant_address').value = fullAddress;
-        document.getElementById('restaurant_latitude').value = lat || '';
-        document.getElementById('restaurant_longitude').value = lon || '';
-        hideModal();
-        document.getElementById('selected-restaurant').textContent = `Selected: ${name}`;
     };
 
     // Category Autocomplete

@@ -37,3 +37,4 @@ flask
 flask_migrate
 gunicorn
 dotenv
+
