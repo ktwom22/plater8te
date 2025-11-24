@@ -100,24 +100,12 @@
                 <!-- Comments -->
                 <div class="comment-section">
                     {% if plate.comments %}
-                        {% set first_comment = plate.comments[0] %}
+                        {% for c in plate.comments %}
                         <div class="comment">
-                            <div class="comment-avatar">{{ first_comment.user.username[0]|upper if first_comment.user else '?' }}</div>
-                            <div class="comment-text">{{ first_comment.text }}</div>
+                            <div class="comment-avatar">{{ c.user.username[0]|upper if c.user else '?' }}</div>
+                            <div class="comment-text">{{ c.text }}</div>
                         </div>
-                        {% if plate.comments|length > 1 %}
-                            <div class="comment-toggle" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">
-                                Show {{ plate.comments|length -1 }} more comment(s)
-                            </div>
-                            <div style="display:none;">
-                                {% for c in plate.comments[1:] %}
-                                <div class="comment">
-                                    <div class="comment-avatar">{{ c.user.username[0]|upper if c.user else '?' }}</div>
-                                    <div class="comment-text">{{ c.text }}</div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        {% endfor %}
                     {% else %}
                         <p class="text-muted small">No comments yet.</p>
                     {% endif %}
@@ -140,51 +128,59 @@
 
 {% block scripts %}
 <script>
+function getCSRF() {
+    return document.querySelector('meta[name="csrf-token"]').content;
+}
+
 function submitComment(btn) {
     const input = btn.previousElementSibling;
     const text = input.value.trim();
     const plateId = input.dataset.plate;
-    if(!text) return;
+    if (!text) return;
+
     fetch(`/plates/${plateId}/comment`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
-        body:JSON.stringify({text})
-    }).then(r=>r.json()).then(data=>{
-        if(data.error){ showToast(data.error,'danger'); return; }
-        const html=`<div class="comment"><div class="comment-avatar">${data.username[0].toUpperCase()}</div><div class="comment-text">${data.text}</div></div>`;
-        btn.closest('.comment-section').insertAdjacentHTML('beforeend',html);
-        input.value='';
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRF()
+        },
+        body: JSON.stringify({ text })
+    }).then(r => r.json()).then(data => {
+        if (data.error) { showToast(data.error, 'danger'); return; }
+        const html = `<div class="comment"><div class="comment-avatar">${data.username[0].toUpperCase()}</div><div class="comment-text">${data.text}</div></div>`;
+        btn.closest('.comment-section').insertAdjacentHTML('beforeend', html);
+        input.value = '';
         showToast('Comment posted!');
     });
 }
 
-function toggleLike(plateId, btn){
-    fetch(`/plates/${plateId}/like`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
-    }).then(r=>r.json()).then(data=>{
-        btn.textContent=`Like (${data.like_count})`;
-        showToast(data.liked?'Liked!':'Unliked!');
+function toggleLike(plateId, btn) {
+    fetch(`/plates/${plateId}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRF() }
+    }).then(r => r.json()).then(data => {
+        btn.textContent = `Like (${data.like_count})`;
+        showToast(data.liked ? 'Liked!' : 'Unliked!');
     });
 }
 
-function toggleFavorite(plateId, btn){
-    fetch(`/plates/${plateId}/favorite`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
-    }).then(r=>r.json()).then(data=>{
-        btn.textContent = data.favorited?'Favorited':'Favorite';
-        showToast(data.favorited?'Added to favorites!':'Removed from favorites!');
+function toggleFavorite(plateId, btn) {
+    fetch(`/plates/${plateId}/favorite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRF() }
+    }).then(r => r.json()).then(data => {
+        btn.textContent = data.favorited ? 'Favorited' : 'Favorite';
+        showToast(data.favorited ? 'Added to favorites!' : 'Removed from favorites!');
     });
 }
 
-function followUser(userId, btn){
-    fetch(`/users/${userId}/follow`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
-    }).then(r=>r.json()).then(data=>{
-        btn.textContent = data.following?'Following':'Follow';
-        showToast(data.following?'You are now following!':'Unfollowed.');
+function followUser(userId, btn) {
+    fetch(`/users/${userId}/follow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRF() }
+    }).then(r => r.json()).then(data => {
+        btn.textContent = data.following ? 'Following' : 'Follow';
+        showToast(data.following ? 'You are now following!' : 'Unfollowed.');
     });
 }
 </script>
