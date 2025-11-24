@@ -37,4 +37,4 @@ flask
 flask_migrate
 gunicorn
 dotenv
-flask_wtf.csrf
+Flask-WTF
