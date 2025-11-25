@@ -42,15 +42,14 @@ GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '').strip()
 # ------------------ Models ------------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
+    username = db.Column(db.String, nullable=False, unique=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
     plates = db.relationship('Plate', backref='user', lazy=True)
     likes = db.relationship('Like', backref='user', lazy=True)
-    user_plates = db.relationship('UserPlate', backref='user', lazy=True)
-    # Remove this:
-    # comments = db.relationship('Comment', backref='user', lazy=True)
+    user_plates = db.relationship('UserPlate', back_populates='user')  # <-- fixedbackref='user', lazy=True)
 
 class Restaurant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -70,7 +69,7 @@ class Category(db.Model):
 
 class Plate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String, nullable=False)
     description = db.Column(db.Text)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'))
     image_url = db.Column(db.String(200))
@@ -78,19 +77,18 @@ class Plate(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'))
 
-    user_plates = db.relationship('UserPlate', backref='plate', lazy=True)
     comments = db.relationship('Comment', back_populates='plate', lazy=True)
     likes = db.relationship('Like', backref='plate', lazy=True)
     category = db.relationship('Category', back_populates='plates')
-
+    user_plates = db.relationship('UserPlate', back_populates='plate')  # <-- fixed
 
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"))
-    score = db.Column(db.Integer, default=0)  # <-- add this
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'plate_id', name='unique_like'),)
+
 
 
 class Comment(db.Model):
@@ -104,17 +102,26 @@ class Comment(db.Model):
     plate = db.relationship("Plate", back_populates="comments")
 
 
+class Favorite(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    plate_id = db.Column(db.Integer, db.ForeignKey('plate.id'), nullable=False)
+
 
 class UserPlate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"), nullable=False)
     liked = db.Column(db.Boolean, default=False)
     favorite = db.Column(db.Boolean, default=False)
-    description = db.Column(db.Text, nullable=True)
-    rated = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    rated = db.Column(db.Integer)
 
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'plate_id', name='unique_user_plate'),
+    )
+
+    user = db.relationship("User", back_populates="user_plates")
+    plate = db.relationship("Plate", back_populates="user_plates")
 
 # ------------------ Helpers ------------------
 def allowed_file(filename):
@@ -298,20 +305,24 @@ def home():
 
     plates = plates_q.all()
 
-    # Compute avg_rating and likes/favorites
     for plate in plates:
-        ratings = [up.rated for up in plate.user_plates if up.rated]
+        # Average rating
+        ratings = [up.rated for up in plate.user_plates if up.rated is not None]
         plate.avg_rating = round(sum(ratings)/len(ratings), 1) if ratings else 0
-        plate.like_count = Like.query.filter_by(plate_id=plate.id).count()
 
+        # Like count
+        plate.like_count = sum(1 for up in plate.user_plates if up.liked)
+
+        # User-specific flags
         if user_id:
-            plate.user_liked = any(up.user_id == user_id for up in plate.user_plates)
-            plate.user_favorited = False  # implement Favorite table check if needed
+            user_up = next((up for up in plate.user_plates if up.user_id == user_id), None)
+            plate.user_liked = user_up.liked if user_up else False
+            plate.user_favorited = user_up.favorite if user_up else False
 
-        # Only keep comments where user exists
+        # Only keep comments with a valid user
         plate.comments = [c for c in plate.comments if c.user]
 
-    # Location filter
+    # Location filtering
     if location_query or (lat and lon):
         if not (lat and lon):
             lat, lon = geocode_location(location_query)
