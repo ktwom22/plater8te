@@ -1,32 +1,77 @@
 {% extends "base.html" %}
+
+{% block title %}My Plates{% endblock %}
+
+{% block head %}
+<style>
+.page-title { font-weight:800; font-size:2rem; text-align:center; margin-bottom:30px; color:#ff6363; }
+.plate-card { border-radius:15px; overflow:hidden; background:#fff; border:1px solid #eaeaea; box-shadow:0 5px 15px rgba(0,0,0,0.05); transition:transform 0.2s ease; }
+.plate-card:hover { transform:translateY(-5px); box-shadow:0 10px 25px rgba(0,0,0,0.1); }
+.plate-img { width:100%; height:200px; object-fit:cover; }
+.plate-body { padding:15px; }
+.plate-title { font-size:1.2rem; font-weight:700; margin-bottom:5px; }
+.category-banner { background:#ff995e; color:#fff; font-weight:600; padding:2px 8px; border-radius:12px; display:inline-block; font-size:0.85rem; margin-bottom:8px; }
+.star-display { font-size:1rem; color:#ffb400; margin-bottom:8px; }
+.star-display .inactive { color:#ccc; }
+.description-text { font-size:0.95rem; color:#555; margin-bottom:10px; }
+.plate-actions { display:flex; gap:8px; }
+.plate-actions button, .plate-actions a { flex:1; font-size:0.85rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>My Unrated Plates</h2>
+<h1 class="page-title">My Plates</h1>
+
 {% if plates %}
-<ul>
+<div class="row g-4">
     {% for plate in plates %}
-    <li>
-        <img src="{{ plate.image_url or url_for('static', filename='uploads/placeholder.png') }}" width="100">
-        <strong>{{ plate.name }}</strong> - {{ plate.restaurant.name if plate.restaurant else '' }}
-        <form class="favorite-form" data-plate="{{ plate.id }}">
-            <button type="button" class="favorite-btn">
-                {% if plate.user_status|length > 0 and plate.user_status[0].favorited %}❤️{% else %}🤍{% endif %}
-            </button>
-        </form>
-        <a href="{{ url_for('play') }}">Rate</a>
-    </li>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="plate-card">
+            {% if plate.category %}<div class="category-banner">{{ plate.category.name }}</div>{% endif %}
+            <img src="{{ plate.image_url or url_for('static', filename='uploads/placeholder.png') }}" class="plate-img">
+
+            <div class="plate-body">
+                <h5 class="plate-title">{{ plate.name }}</h5>
+                <small class="text-muted">Posted {{ plate.created_at.strftime('%b %d, %Y') }}</small>
+
+                <div class="star-display">
+                    {% if plate.avg_rating is not none and plate.avg_rating > 0 %}
+                        {% for i in range(1,6) %}
+                            {% if i <= plate.avg_rating|round(0,'floor') %}&#9733;{% else %}<span class="inactive">&#9733;</span>{% endif %}
+                        {% endfor %}
+                        <span class="text-muted small">({{ plate.avg_rating }}/5)</span>
+                    {% else %}
+                        <span class="text-muted small">Unrated</span>
+                    {% endif %}
+                </div>
+
+                <p class="description-text">{{ plate.description or "No description." }}</p>
+
+                <div class="plate-actions">
+                    <button class="btn btn-outline-warning favorite-btn" data-plate="{{ plate.id }}">
+                        {% if plate.user_plates and plate.user_plates[0].favorite %}❤️{% else %}🤍{% endif %}
+                    </button>
+                    <a href="{{ url_for('rate_plate', plate_id=plate.id) }}" class="btn btn-outline-primary">Rate</a>
+                </div>
+            </div>
+        </div>
+    </div>
     {% endfor %}
-</ul>
+</div>
 {% else %}
-<p>No unrated plates available. Check back later!</p>
+<p class="text-center text-muted">You haven't posted any plates yet.</p>
 {% endif %}
+
+{% endblock %}
+
+{% block scripts %}
 <script>
-document.querySelectorAll('.favorite-form').forEach(form => {
-    form.querySelector('.favorite-btn').addEventListener('click', async () => {
-        const plateId = form.dataset.plate
-        const resp = await fetch(`/plate/${plateId}/favorite`, {method:'POST'})
+document.querySelectorAll('.favorite-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const plateId = btn.dataset.plate
+        const resp = await fetch(`/plates/${plateId}/favorite`, {method:'POST'})
         const data = await resp.json()
-        if (data.favorited) form.querySelector('.favorite-btn').textContent = '❤️'
-        else form.querySelector('.favorite-btn').textContent = '🤍'
+        btn.textContent = data.favorited ? '❤️' : '🤍'
     })
 })
 </script>

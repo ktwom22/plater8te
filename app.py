@@ -114,7 +114,7 @@ class UserPlate(db.Model):
     plate_id = db.Column(db.Integer, db.ForeignKey("plate.id"), nullable=False)
     liked = db.Column(db.Boolean, default=False)
     favorite = db.Column(db.Boolean, default=False)
-    rated = db.Column(db.Integer)
+    rated = db.Column(db.Integer)  # <-- Rating (can be NULL)
 
     __table_args__ = (
         db.UniqueConstraint('user_id', 'plate_id', name='unique_user_plate'),
@@ -277,6 +277,45 @@ def get_place_details(place_id):
 
     return {}
 
+from sqlalchemy import or_
+
+from sqlalchemy import or_
+
+def get_unrated_plates_for_user(user_id):
+    """
+    Returns Plate objects that are unrated for the given user.
+    Includes:
+      - Plates with UserPlate.rated == 0 or NULL
+      - Plates with no UserPlate entry yet
+    Eager-loads Restaurant and Category.
+    Sets avg_rating = None for truly unrated plates.
+    """
+    plates = (
+        db.session.query(Plate)
+        .outerjoin(UserPlate, (UserPlate.plate_id == Plate.id) & (UserPlate.user_id == user_id))
+        .options(
+            db.joinedload(Plate.restaurant),
+            db.joinedload(Plate.category),
+            db.joinedload(Plate.user_plates)  # Load all user plates to compute avg_rating
+        )
+        .filter(
+            or_(
+                UserPlate.rated == 0,
+                UserPlate.rated.is_(None),
+                UserPlate.id.is_(None)  # No UserPlate record yet
+            )
+        )
+        .all()
+    )
+
+    # Compute avg_rating for each plate
+    for plate in plates:
+        ratings = [up.rated for up in plate.user_plates if up.rated and up.rated > 0]
+        plate.avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else None
+
+    return plates
+
+
 
 
 
@@ -342,19 +381,29 @@ def home():
 @csrf.exempt
 def search_plates():
     try:
+        user_id = session.get('user_id')
+
         # --- Query params ---
         location = request.args.get('location', '').strip()
         category_id = request.args.get('category_id', type=int)
         radius_miles = float(request.args.get('radius', 10))  # default 10 miles
+        show_unrated_only = request.args.get('unrated', type=int) == 1
 
         # Fetch all plates with restaurants preloaded
         plates = Plate.query.join(Restaurant).all()
 
-        # Compute avg_rating for each plate
+        # Compute avg_rating and check if unrated for current user
         for plate in plates:
+            # Ratings from all users
             ratings = [up.rated for up in plate.user_plates if up.rated and up.rated > 0]
             plate.avg_rating = sum(ratings) / len(ratings) if ratings else 0
-            plate.avg_rating = sum(ratings) / len(ratings) if ratings else 0
+
+            # Determine if this plate is unrated by current user
+            if user_id:
+                up = next((up for up in plate.user_plates if up.user_id == user_id), None)
+                plate.is_unrated_for_user = up is None or up.rated is None
+            else:
+                plate.is_unrated_for_user = False
 
         filtered_plates = plates
 
@@ -379,8 +428,17 @@ def search_plates():
                    haversine(lat, lon, p.restaurant.latitude, p.restaurant.longitude) <= radius_miles
             ]
 
+        # --- Filter to only unrated plates if requested ---
+        if show_unrated_only and user_id:
+            filtered_plates = [p for p in filtered_plates if p.is_unrated_for_user]
+
         categories = Category.query.all()
-        return render_template('home.html', plates=filtered_plates, categories=categories)
+        return render_template(
+            'home.html',
+            plates=filtered_plates,
+            categories=categories,
+            show_unrated_only=show_unrated_only
+        )
 
     except Exception as e:
         print("Error in search_plates:", e)
@@ -390,6 +448,7 @@ def search_plates():
             categories=Category.query.all(),
             error='Server error'
         )
+
 
 
 
@@ -438,34 +497,73 @@ def logout():
     return redirect(url_for('home'))
 
 # ------------------ Plate Creation ------------------
-@app.route('/create_plate', methods=['GET','POST'])
+@app.route('/create_plate', methods=['GET', 'POST'])
 @csrf.exempt
 def create_plate():
     if 'user_id' not in session:
-        flash("Login required","error")
+        flash("Login required", "error")
         return redirect(url_for('login'))
 
-    if request.method=='POST':
+    if request.method == 'POST':
         user_id = session.get('user_id')
-        name = request.form.get('name')
-        description = request.form.get('description')
-        category_id = request.form.get('category_id')
-        restaurant_name = request.form.get('restaurant_name')
-        restaurant_address = request.form.get('restaurant_address')
-        restaurant_lat = request.form.get('restaurant_latitude')
-        restaurant_lon = request.form.get('restaurant_longitude')
-        if not all([name, restaurant_name, restaurant_lat, restaurant_lon, category_id]):
-            flash("Fill all fields","error")
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        category_id = request.form.get('category_id', '').strip()
+        restaurant_name = request.form.get('restaurant_name', '').strip()
+        restaurant_address = request.form.get('restaurant_address', '').strip()
+        restaurant_lat = request.form.get('restaurant_latitude', '').strip()
+        restaurant_lon = request.form.get('restaurant_longitude', '').strip()
+
+        # Validate required fields
+        missing_fields = []
+        if not name:
+            missing_fields.append("Plate Name")
+        if not category_id:
+            missing_fields.append("Category")
+        if not restaurant_name:
+            missing_fields.append("Restaurant Name")
+        if not restaurant_lat or not restaurant_lon:
+            missing_fields.append("Restaurant Location")
+
+        if missing_fields:
+            flash(f"Please fill these fields: {', '.join(missing_fields)}", "error")
             return redirect(url_for('create_plate'))
 
-        restaurant = Restaurant.query.filter_by(name=restaurant_name, latitude=restaurant_lat, longitude=restaurant_lon).first()
+        # Convert lat/lon to float safely
+        try:
+            restaurant_lat = float(restaurant_lat)
+            restaurant_lon = float(restaurant_lon)
+        except ValueError:
+            flash("Invalid restaurant location. Use 'Use My Location' or select a valid restaurant.", "error")
+            return redirect(url_for('create_plate'))
+
+        # Find or create restaurant
+        restaurant = Restaurant.query.filter_by(
+            name=restaurant_name,
+            latitude=restaurant_lat,
+            longitude=restaurant_lon
+        ).first()
+
         if not restaurant:
-            restaurant = Restaurant(name=restaurant_name, address=restaurant_address, latitude=float(restaurant_lat), longitude=float(restaurant_lon))
+            restaurant = Restaurant(
+                name=restaurant_name,
+                address=restaurant_address,
+                latitude=restaurant_lat,
+                longitude=restaurant_lon
+            )
             db.session.add(restaurant)
             db.session.commit()
 
-        plate = Plate(name=name, description=description, category_id=int(category_id), restaurant_id=restaurant.id, user_id=user_id)
+        # Create plate
+        plate = Plate(
+            name=name,
+            description=description,
+            category_id=int(category_id),
+            restaurant_id=restaurant.id,
+            user_id=user_id
+        )
 
+        # Handle image
         file = request.files.get('image')
         if file and allowed_file(file.filename):
             ext = os.path.splitext(file.filename)[1].lower()
@@ -475,12 +573,15 @@ def create_plate():
         db.session.add(plate)
         db.session.commit()
 
+        # Add to UserPlate (unrated by default)
         user_plate = UserPlate(user_id=user_id, plate_id=plate.id)
         db.session.add(user_plate)
         db.session.commit()
 
+        # Optionally schedule email for rating
         schedule_email_for_rating(plate.id, user_id)
-        flash("Plate posted successfully!","success")
+
+        flash("Plate posted successfully!", "success")
         return redirect(url_for('home'))
 
     categories = Category.query.all()
@@ -681,8 +782,6 @@ def plate_swipe(plate_id):
     return jsonify({'status':'ok'})
 
 # ------------------ User Plates ------------------
-from sqlalchemy import or_
-
 @app.route('/my_plates')
 @csrf.exempt
 def my_plates():
@@ -692,26 +791,31 @@ def my_plates():
 
     user_id = session['user_id']
 
-    # Get all plates for this user where rated = 0 or NULL
-    unrated = (
-        db.session.query(Plate)
-        .join(
-            UserPlate,
-            (UserPlate.plate_id == Plate.id) &
-            (UserPlate.user_id == user_id),
-            isouter=True
-        )
-        .filter(
-            or_(
-                UserPlate.rated == 0,
-                UserPlate.rated.is_(None)
-            )
+    # Get unrated UserPlate entries with eager-loaded Plate + Restaurant + Category
+    user_plates = (
+        UserPlate.query
+        .filter(UserPlate.user_id == user_id)
+        .join(UserPlate.plate)
+        .options(
+            db.joinedload(UserPlate.plate).joinedload(Plate.restaurant),
+            db.joinedload(UserPlate.plate).joinedload(Plate.category)
         )
         .all()
     )
 
-    return render_template('my_plates.html', plates=unrated)
+    plates = []
+    for up in user_plates:
+        # Only include unrated or unrated=0
+        if up.rated is None or up.rated == 0:
+            plate = up.plate
+            # Set avg_rating to None for unrated
+            plate.avg_rating = None
+            # Include like/favorite info
+            plate.user_liked = up.liked
+            plate.user_favorited = up.favorite
+            plates.append(plate)
 
+    return render_template('my_plates.html', plates=plates)
 
 @app.route('/favorites')
 @csrf.exempt
@@ -727,27 +831,32 @@ def favorites():
 @csrf.exempt
 def unrated_plates():
     if 'user_id' not in session:
-        flash("Login required","error")
+        flash("Login required", "error")
         return redirect(url_for('login'))
 
     user_id = session['user_id']
 
-    # Get unrated user_plate entries with eager-loaded Plate + Restaurant
+    # Fetch UserPlate entries that are unrated (None or 0)
     unrated_entries = (
         UserPlate.query
-        .filter_by(user_id=user_id, rated=0)
+        .filter(UserPlate.user_id == user_id, or_(UserPlate.rated.is_(None), UserPlate.rated == 0))
         .join(UserPlate.plate)
         .options(
-            db.joinedload(UserPlate.plate).joinedload(Plate.restaurant)
+            db.joinedload(UserPlate.plate).joinedload(Plate.restaurant),
+            db.joinedload(UserPlate.plate).joinedload(Plate.category)
         )
         .all()
     )
 
-    # Extract the actual Plate objects
-    plates = [entry.plate for entry in unrated_entries]
+    plates = []
+    for up in unrated_entries:
+        plate = up.plate
+        plate.avg_rating = None  # unrated
+        plate.user_liked = up.liked
+        plate.user_favorited = up.favorite
+        plates.append(plate)
 
     return render_template("unrated_plates.html", plates=plates)
-
 
 @app.route("/rate_plate/<int:plate_id>", methods=["GET", "POST"])
 @csrf.exempt

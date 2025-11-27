@@ -64,7 +64,7 @@
     <div class="col-12 col-md-6 col-lg-4 mb-4">
         <div class="plate-card">
             {% if plate.category %}<div class="category-banner">{{ plate.category.name }}</div>{% endif %}
-            <img src="{{ plate.image_url or url_for('static','uploads/placeholder.png') }}" class="plate-img">
+            <img src="{{ plate.image_url or url_for('static', filename='uploads/placeholder.png') }}" class="plate-img">
 
             <div class="plate-body">
                 <h5 class="plate-title">{{ plate.name }}</h5>
@@ -78,12 +78,17 @@
                     {% else %}Anonymous{% endif %}
                 </small>
 
+                <!-- Star Rating -->
                 <div class="star-display mb-2">
-                    {% set avg = plate.avg_rating or 0 %}
-                    {% for i in range(1,6) %}
-                        {% if i <= avg|round(0,'floor') %}&#9733;{% else %}<span class="inactive">&#9733;</span>{% endif %}
-                    {% endfor %}
-                    <span class="text-muted small">({{ avg }}/5)</span>
+                    {% if plate.avg_rating is not none and plate.avg_rating > 0 %}
+                        {% set avg = plate.avg_rating %}
+                        {% for i in range(1,6) %}
+                            {% if i <= avg|round(0,'floor') %}&#9733;{% else %}<span class="inactive">&#9733;</span>{% endif %}
+                        {% endfor %}
+                        <span class="text-muted small">({{ avg }}/5)</span>
+                    {% else %}
+                        <span class="text-muted">Unrated</span>
+                    {% endif %}
                 </div>
 
                 <p class="description-text">{{ plate.description or "No description." }}</p>
