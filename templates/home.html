@@ -4,7 +4,6 @@
 
 {% block head %}
 <style>
-/* Keep your previous card/comment styling here */
 .page-title { font-weight:800; font-size:2.3rem; text-align:center; margin-bottom:32px; background: linear-gradient(90deg,#ff6363,#ff995e); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .plate-card { border-radius:20px; overflow:hidden; background:#fff; border:1px solid #eaeaea; box-shadow:0 8px 30px rgba(0,0,0,0.07); transition: transform 0.2s ease, box-shadow 0.25s ease; }
 .plate-card:hover { transform:translateY(-6px); box-shadow:0 14px 40px rgba(0,0,0,0.14); }
@@ -16,14 +15,16 @@
 .star-display { color:#ffb400; font-size:1.1rem; }
 .star-display .inactive { color:#ccc; }
 .description-text { color:#555; font-size:0.97rem; margin-top:8px; }
-.plate-actions { margin-top:10px; display:flex; gap:12px; }
+.plate-actions { margin-top:10px; display:flex; gap:12px; flex-wrap: wrap; }
 .plate-actions button { border-radius:12px; font-weight:600; }
-.comment-section { margin-top:15px; border-top:1px solid #eee; padding-top:10px; }
+.comment-section { margin-top:10px; border-top:1px solid #eee; padding-top:10px; display:none; }
 .comment { display:flex; gap:10px; margin-bottom:6px; }
-.comment-avatar { width:30px; height:30px; border-radius:50%; background:#ff995e; color:#fff; font-weight:700; display:flex; justify-content:center; align-items:center; font-size:0.85rem; }
-.comment-text { background:#f1f3f6; padding:6px 10px; border-radius:12px; font-size:0.9rem; }
-.comment-toggle { color:#007bff; cursor:pointer; font-size:0.85rem; }
-.new-comment input { width:100%; }
+.comment-avatar { width:35px; height:35px; border-radius:50%; background:#ff995e; color:#fff; font-weight:700; display:flex; justify-content:center; align-items:center; font-size:0.85rem; }
+.comment-text { background:#f1f3f6; padding:6px 10px; border-radius:12px; font-size:0.9rem; flex:1; }
+.comment-header { display:flex; justify-content:space-between; font-size:0.8rem; color:#555; margin-bottom:2px; }
+.new-comment { display:flex; gap:8px; margin-top:8px; }
+.new-comment input { flex:1; }
+.comment-toggle-btn { background:none; border:none; color:#007bff; cursor:pointer; font-size:0.9rem; padding:0; }
 </style>
 {% endblock %}
 
@@ -93,6 +94,7 @@
 
                 <p class="description-text">{{ plate.description or "No description." }}</p>
 
+                <!-- Actions with comment count -->
                 <div class="plate-actions">
                     <button class="btn btn-outline-primary btn-sm" onclick="toggleLike({{ plate.id }}, this)">
                         Like ({{ plate.like_count or 0 }})
@@ -100,28 +102,40 @@
                     <button class="btn btn-outline-warning btn-sm" onclick="toggleFavorite({{ plate.id }}, this)">
                         {% if plate.user_favorited %}Favorited{% else %}Favorite{% endif %}
                     </button>
+                    <button class="comment-toggle-btn" onclick="toggleComments(this)">
+                        Comments ({{ plate.comments|length }})
+                    </button>
                 </div>
 
-                <!-- Comments -->
+                <!-- Collapsible Comments -->
                 <div class="comment-section">
                     {% if plate.comments %}
+                        <div class="comments-list">
                         {% for c in plate.comments %}
-                        <div class="comment">
-                            <div class="comment-avatar">{{ c.user.username[0]|upper if c.user else '?' }}</div>
-                            <div class="comment-text">{{ c.text }}</div>
-                        </div>
+                            <div class="comment">
+                                <div class="comment-avatar">{{ c.user.username[0]|upper if c.user else '?' }}</div>
+                                <div class="comment-text">
+                                    <div class="comment-header">
+                                        <span>{{ c.user.username if c.user else 'Anonymous' }}</span>
+                                        <span>{{ c.created_at.strftime('%b %d, %Y %I:%M %p') }}</span>
+                                    </div>
+                                    {{ c.text }}
+                                </div>
+                            </div>
                         {% endfor %}
+                        </div>
                     {% else %}
                         <p class="text-muted small">No comments yet.</p>
                     {% endif %}
 
                     {% if session.get('user_id') %}
-                    <div class="new-comment mt-2">
+                    <div class="new-comment">
                         <input type="text" class="form-control form-control-sm" placeholder="Add a comment..." data-plate="{{ plate.id }}">
-                        <button class="btn btn-sm btn-primary mt-1" onclick="submitComment(this)">Post</button>
+                        <button class="btn btn-sm btn-primary" onclick="submitComment(this)">Post</button>
                     </div>
                     {% endif %}
                 </div>
+
             </div>
         </div>
     </div>
@@ -135,6 +149,11 @@
 <script>
 function getCSRF() {
     return document.querySelector('meta[name="csrf-token"]').content;
+}
+
+function toggleComments(btn) {
+    const cardBody = btn.closest('.plate-card').querySelector('.comment-section');
+    cardBody.style.display = (cardBody.style.display === 'none' || cardBody.style.display === '') ? 'block' : 'none';
 }
 
 function submitComment(btn) {
@@ -152,8 +171,15 @@ function submitComment(btn) {
         body: JSON.stringify({ text })
     }).then(r => r.json()).then(data => {
         if (data.error) { showToast(data.error, 'danger'); return; }
-        const html = `<div class="comment"><div class="comment-avatar">${data.username[0].toUpperCase()}</div><div class="comment-text">${data.text}</div></div>`;
-        btn.closest('.comment-section').insertAdjacentHTML('beforeend', html);
+        const html = `<div class="comment">
+            <div class="comment-avatar">${data.username[0].toUpperCase()}</div>
+            <div class="comment-text">
+                <div class="comment-header"><span>${data.username}</span><span>Just now</span></div>
+                ${data.text}
+            </div>
+        </div>`;
+        const commentsList = btn.closest('.comment-section').querySelector('.comments-list') || btn.closest('.comment-section');
+        commentsList.insertAdjacentHTML('beforeend', html);
         input.value = '';
         showToast('Comment posted!');
     });
