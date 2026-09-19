@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rate Your Plate</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 max-w-md w-full space-y-4">
+    <div class="text-center">
+      <h1 class="text-2xl font-black text-gray-900">How was the {{ plate.dish_name }}?</h1>
+      <p class="text-sm text-gray-500">from {{ plate.restaurant }}</p>
+    </div>
+
+    <form action="/plates/{{ plate.id }}/rate" method="post" class="space-y-4">
+      <div>
+        <div class="flex justify-between text-xs font-semibold text-gray-500 uppercase mb-1">
+          <span>Score</span>
+          <span id="ratingVal" class="font-bold text-rose-600">8/10</span>
+        </div>
+        <input type="range" name="rating" min="1" max="10" value="8" oninput="document.getElementById('ratingVal').innerText = this.value + '/10'" class="w-full accent-rose-600">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Would you order it again?</label>
+        <div class="flex space-x-4 text-sm">
+          <label class="flex items-center space-x-1.5 cursor-pointer">
+            <input type="radio" name="reorder" value="Hell yes" checked class="text-rose-600">
+            <span>Hell yes</span>
+          </label>
+          <label class="flex items-center space-x-1.5 cursor-pointer">
+            <input type="radio" name="reorder" value="Never again" class="text-rose-600">
+            <span>Never again</span>
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="w-full bg-rose-600 text-white font-bold py-2.5 rounded-xl hover:bg-rose-700 transition">Submit Final Rating</button>
+    </form>
+  </div>
+</body>
+</html>

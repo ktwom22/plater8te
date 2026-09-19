@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlateRate - Discover Plates Around You</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-900 pb-28">
+
+  <!-- Main Sticky Nav -->
+  <header class="bg-white border-b sticky top-0 z-40 shadow-sm">
+    <div class="max-w-xl mx-auto px-4 py-3 flex justify-between items-center">
+      <a href="/" class="text-2xl font-black text-rose-600 tracking-tight">PlateRate 🍽️</a>
+      {% if user %}
+        <div class="flex items-center space-x-3">
+          <span class="text-xs font-semibold bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full">@{{ user.username }}</span>
+          <a href="/logout" class="text-xs text-rose-500 font-semibold hover:underline">Log Out</a>
+        </div>
+      {% else %}
+        <span class="text-xs text-gray-500 font-medium">Guest Mode</span>
+      {% endif %}
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="max-w-xl mx-auto px-4 flex space-x-6 text-sm font-bold border-t border-gray-100">
+      <a href="/" class="py-2.5 text-rose-600 border-b-2 border-rose-600">Feed</a>
+      {% if user %}
+        <a href="/favorites" class="py-2.5 text-gray-500 hover:text-gray-900">Favorites (Saved)</a>
+        <a href="/my-plates" class="py-2.5 text-gray-500 hover:text-gray-900">My Plates</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main class="max-w-xl mx-auto p-4 space-y-6">
+
+    <!-- Area Discovery / Filter Search Bar -->
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 space-y-3">
+      <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Find Plates in Your Area</h2>
+      <form id="discoveryForm" action="/" method="get" onsubmit="cleanEmptyCoordinates(this)" class="space-y-2">
+        <div class="flex space-x-2">
+          <input type="text" name="food_query" value="{{ food_query }}" placeholder="Food/Dish (e.g., Tacos, Pasta)" class="w-1/2 border border-gray-300 p-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-rose-500">
+          <input type="text" name="location_query" id="locInput" value="{{ location_query }}" placeholder="City, State, or Zip" class="w-1/2 border border-gray-300 p-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-rose-500">
+        </div>
+
+        <input type="hidden" name="user_lat" id="feedLat" value="{{ user_lat if user_lat else '' }}">
+        <input type="hidden" name="user_lon" id="feedLon" value="{{ user_lon if user_lon else '' }}">
+
+        <div class="flex items-center justify-between pt-1">
+          <button type="button" onclick="searchNearMeGPS()" id="gpsBtn" class="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg font-bold hover:bg-rose-100 transition">
+            📍 Use My GPS
+          </button>
+          <div class="flex space-x-2">
+            {% if food_query or location_query or user_lat %}
+              <a href="/" class="text-xs text-gray-500 hover:underline self-center mr-1">Clear</a>
+            {% endif %}
+            <button type="submit" class="bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-black transition">Filter Plates</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Auth Card (Guest Only) -->
+    {% if not user %}
+    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
+      <h2 class="font-bold text-lg mb-1">Sign In to Post</h2>
+      <p class="text-xs text-gray-500 mb-4">Enter a username and email to share plates, bookmark favorites, and get 45-min reminders.</p>
+      <form action="/login" method="post" class="space-y-3">
+        <input type="text" name="username" placeholder="Username" required class="w-full border border-gray-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none">
+        <input type="email" name="email" placeholder="Email address" required class="w-full border border-gray-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none">
+        <button type="submit" class="w-full bg-rose-600 text-white font-bold py-2.5 rounded-xl hover:bg-rose-700 transition">Start Posting</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Post Plate Trigger Banner (Logged In) -->
+    {% if user %}
+    <div class="bg-gradient-to-r from-rose-500 to-rose-600 rounded-2xl p-4 shadow-sm flex items-center justify-between text-white">
+      <div>
+        <h3 class="font-black text-lg">Eating something good?</h3>
+        <p class="text-xs text-rose-100 font-medium">Rate the plate or set a 45-min reminder.</p>
+      </div>
+      <button type="button" onclick="openPostModal()" class="bg-white text-rose-600 font-extrabold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-50 shadow-md transition transform active:scale-95">
+        + Post a Plate
+      </button>
+    </div>
+    {% endif %}
+
+    <!-- Feed Cards -->
+    <div class="space-y-5">
+      {% if not plates %}
+        <div class="bg-white p-8 rounded-2xl border border-gray-200 text-center space-y-2">
+          <p class="font-bold text-gray-700">No plates match your location or search filter.</p>
+          <a href="/" class="text-xs text-rose-600 font-bold hover:underline">Reset filters and see all plates</a>
+        </div>
+      {% endif %}
+
+      {% for plate in plates %}
+      <div id="plate-{{ plate.id }}" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {% if plate.photo_url %}
+          <img src="{{ plate.photo_url }}" alt="{{ plate.dish_name }}" class="w-full aspect-square object-cover">
+        {% endif %}
+
+        <div class="p-5 space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="text-xl font-black text-gray-900 leading-tight">{{ plate.dish_name }}</h3>
+              <p class="text-sm font-semibold text-gray-700 mt-1">📍 {{ plate.restaurant }}</p>
+              {% if plate.restaurant_address %}
+                <p class="text-xs text-gray-400 mt-0.5">{{ plate.restaurant_address }}</p>
+              {% endif %}
+              {% if plate.distance_miles is not none %}
+                <span class="inline-block mt-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                  {{ plate.distance_miles }} miles away
+                </span>
+              {% endif %}
+              <p class="text-[11px] text-gray-400 mt-1">Shared by @{{ plate.username }}</p>
+            </div>
+
+            {% if plate.rating %}
+              <div class="text-right">
+                <div class="bg-amber-100 text-amber-900 font-extrabold px-3 py-1 rounded-xl text-base inline-block">
+                  ★ {{ plate.rating }}/10
+                </div>
+                <div class="text-[11px] font-bold text-gray-500 mt-1">{{ plate.reorder }}</div>
+              </div>
+            {% else %}
+              <span class="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-full">Rating Pending</span>
+            {% endif %}
+          </div>
+
+          <!-- Restaurant Link -->
+          {% if plate.restaurant_website %}
+          <div class="pt-1">
+            <a href="{{ plate.restaurant_website }}" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center space-x-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 transition">
+              <span>View Restaurant & Menu</span>
+              <span>↗</span>
+            </a>
+          </div>
+          {% endif %}
+
+          <!-- Interactions Bar -->
+          <div class="flex items-center space-x-6 border-t border-gray-100 pt-3 text-sm">
+            <form action="/plates/{{ plate.id }}/interact" method="post">
+              <input type="hidden" name="action_type" value="like">
+              <button type="submit" class="font-bold text-gray-600 hover:text-rose-600 flex items-center space-x-1.5 transition">
+                <span>❤️</span> <span>{{ plate.likes }}</span>
+              </button>
+            </form>
+            <form action="/plates/{{ plate.id }}/interact" method="post">
+              <input type="hidden" name="action_type" value="save">
+              <button type="submit" class="font-bold text-gray-600 hover:text-indigo-600 flex items-center space-x-1.5 transition">
+                <span>🔖</span> <span>{{ plate.saves }}</span>
+              </button>
+            </form>
+
+            <!-- Toggle Comments Button -->
+            <button type="button" onclick="toggleComments('{{ plate.id }}')" class="font-bold text-gray-600 hover:text-gray-900 flex items-center space-x-1.5 transition">
+              <span>💬</span>
+              <span>{{ plate.comment_count }} comments</span>
+              <span id="comment-arrow-{{ plate.id }}" class="text-[10px] text-gray-400">▼</span>
+            </button>
+          </div>
+
+          <!-- Expandable Comments Drawer -->
+          <div id="comments-drawer-{{ plate.id }}" class="hidden pt-3 border-t border-gray-100 space-y-3">
+            <div class="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+              {% if not plate.comments %}
+                <p class="text-xs text-gray-400 italic py-1">No comments yet. Start the conversation!</p>
+              {% endif %}
+
+              {% for c in plate.comments %}
+              <div class="bg-gray-50 rounded-xl p-2.5 text-xs space-y-1 border border-gray-100">
+                <div class="flex justify-between items-center text-[11px]">
+                  <span class="font-bold text-gray-900">@{{ c.username }}</span>
+                  <span class="text-gray-400 text-[10px]">{{ c.created_at[:16] }}</span>
+                </div>
+                <p class="text-gray-700 leading-relaxed">{{ c.comment }}</p>
+              </div>
+              {% endfor %}
+            </div>
+
+            <!-- Comment Input Box -->
+            {% if user %}
+            <form action="/plates/{{ plate.id }}/comments" method="post" class="flex space-x-2 pt-1">
+              <input type="text" name="comment" placeholder="Add your take on this dish..." required class="flex-grow border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white">
+              <button type="submit" class="bg-gray-900 text-white font-bold px-4 py-2 rounded-xl text-xs hover:bg-black transition">Post</button>
+            </form>
+            {% else %}
+              <p class="text-[11px] text-gray-400 italic">Sign in above to leave a comment.</p>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </main>
+
+  <!-- Sticky Floating Action Button (Mobile) -->
+  {% if user %}
+  <button type="button" onclick="openPostModal()" class="fixed bottom-6 right-6 z-40 bg-rose-600 text-white font-extrabold px-5 py-3.5 rounded-full shadow-2xl flex items-center space-x-2 hover:bg-rose-700 transition active:scale-95">
+    <span class="text-lg leading-none">+</span>
+    <span class="text-xs tracking-wide">Share Plate</span>
+  </button>
+  {% endif %}
+
+  <!-- ================= POPUP POST MODAL ================= -->
+  {% if user %}
+  <div id="postModalOverlay" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
+
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div>
+          <h2 class="font-black text-lg text-gray-900">Post a New Plate</h2>
+          <p class="text-[11px] text-gray-500">Review your dish or defer rating for 45 minutes.</p>
+        </div>
+        <button type="button" onclick="closePostModal()" class="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none p-1 rounded-lg hover:bg-gray-100">&times;</button>
+      </div>
+
+      <!-- Modal Body Form -->
+      <div class="p-6 overflow-y-auto space-y-4">
+        <form id="platePostForm" action="/plates" method="post" enctype="multipart/form-data" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Dish Name</label>
+            <input type="text" name="dish_name" placeholder="e.g. Truffle Pappardelle" required class="w-full border border-gray-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500">
+          </div>
+
+          <!-- Restaurant Search & Location -->
+          <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-gray-700 uppercase tracking-wider">Restaurant Search</label>
+              <button type="button" onclick="locateRestaurantGPS()" id="postLocBtn" class="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg font-bold hover:bg-rose-100 transition">
+                <span>📍 Find Near Me</span>
+              </button>
+            </div>
+
+            <div class="flex space-x-2">
+              <input type="text" id="postLocSearchInput" placeholder="Enter City, State or Zip..." class="flex-grow border border-gray-300 p-2.5 rounded-lg text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white">
+              <button type="button" onclick="searchPostLocation()" id="postSearchBtn" class="bg-gray-800 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-black transition">Search</button>
+            </div>
+
+            <div id="resultsContainer" class="hidden space-y-1 pt-1">
+              <label class="text-[11px] font-bold text-gray-500 uppercase">Select Matching Restaurant:</label>
+              <select id="restaurantSelect" onchange="applySelectedRestaurant(this)" class="w-full border border-gray-300 p-2.5 rounded-lg text-xs bg-white font-medium text-gray-700">
+                <option value="">-- Choose from results --</option>
+              </select>
+            </div>
+
+            <div class="space-y-2 pt-2 border-t border-gray-200">
+              <input type="text" name="restaurant" id="restaurantName" placeholder="Restaurant Name" required class="w-full border border-gray-300 p-2 rounded-lg text-xs bg-white outline-none">
+              <input type="text" name="restaurant_address" id="restaurantAddress" placeholder="Address (optional)" class="w-full border border-gray-300 p-2 rounded-lg text-xs bg-white outline-none">
+              <input type="url" name="restaurant_website" id="restaurantWebsite" placeholder="Website or Menu Link (optional)" class="w-full border border-gray-300 p-2 rounded-lg text-xs bg-white outline-none">
+            </div>
+
+            <input type="hidden" name="latitude" id="latField">
+            <input type="hidden" name="longitude" id="lonField">
+          </div>
+
+          <!-- Photo Canvas Upload -->
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Plate Photo</label>
+            <input type="file" id="photoFileInput" name="photo" accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 cursor-pointer">
+          </div>
+
+          <div id="imageEditorContainer" class="hidden space-y-3 bg-neutral-900 p-3 rounded-2xl border border-neutral-800">
+            <div class="relative w-full aspect-square bg-black rounded-xl overflow-hidden flex items-center justify-center">
+              <canvas id="photoCanvas" class="max-w-full max-h-full object-contain"></canvas>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 bg-neutral-800 p-3 rounded-xl text-xs text-neutral-300">
+              <div>
+                <div class="flex justify-between font-semibold mb-1">
+                  <span>Brightness</span>
+                  <span id="brightnessVal" class="text-neutral-400">105%</span>
+                </div>
+                <input type="range" id="sliderBrightness" min="60" max="150" value="105" oninput="applyFilters()" class="w-full accent-rose-500">
+              </div>
+              <div>
+                <div class="flex justify-between font-semibold mb-1">
+                  <span>Warmth</span>
+                  <span id="saturationVal" class="text-neutral-400">120%</span>
+                </div>
+                <input type="range" id="sliderSaturation" min="80" max="180" value="120" oninput="applyFilters()" class="w-full accent-rose-500">
+              </div>
+            </div>
+
+            <div class="flex space-x-2 pt-1">
+              <button type="button" onclick="setPreset('natural')" class="flex-1 py-1.5 rounded-lg border border-neutral-700 text-xs font-bold text-neutral-300 bg-neutral-800 hover:bg-neutral-700">Original</button>
+              <button type="button" onclick="setPreset('warm')" class="flex-1 py-1.5 rounded-lg border border-amber-600/40 text-xs font-bold text-amber-300 bg-amber-950/40 hover:bg-amber-900/60">🔥 Golden</button>
+              <button type="button" onclick="setPreset('punch')" class="flex-1 py-1.5 rounded-lg border border-rose-600/40 text-xs font-bold text-rose-300 bg-rose-950/40 hover:bg-rose-900/60">⚡ Pop</button>
+            </div>
+          </div>
+
+          <!-- 45-Min Reminder Toggle -->
+          <div class="bg-rose-50 p-3.5 rounded-xl border border-rose-100">
+            <label class="flex items-center space-x-2 text-sm font-medium text-rose-900 cursor-pointer">
+              <input type="checkbox" name="skip_rating" value="true" id="skipToggle" onchange="toggleRatingFields(this)" class="w-4 h-4 text-rose-600 rounded">
+              <span>Haven't finished eating? Remind me in 45 mins</span>
+            </label>
+          </div>
+
+          <!-- Rating Fields -->
+          <div id="ratingFields" class="space-y-3">
+            <div>
+              <div class="flex justify-between text-xs font-semibold text-gray-500 uppercase mb-1">
+                <span>Plate Score</span>
+                <span id="ratingDisplay" class="font-bold text-rose-600">8/10</span>
+              </div>
+              <input type="range" name="rating" min="1" max="10" value="8" oninput="document.getElementById('ratingDisplay').innerText = this.value + '/10'" class="w-full accent-rose-600">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Would you order this again?</label>
+              <div class="flex space-x-6 text-sm">
+                <label class="flex items-center space-x-1.5 cursor-pointer">
+                  <input type="radio" name="reorder" value="Hell yes" checked class="text-rose-600">
+                  <span>Hell yes</span>
+                </label>
+                <label class="flex items-center space-x-1.5 cursor-pointer">
+                  <input type="radio" name="reorder" value="Pass" class="text-rose-600">
+                  <span>Pass</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex space-x-3">
+            <button type="button" onclick="closePostModal()" class="w-1/3 border border-gray-300 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-100 transition">Cancel</button>
+            <button type="submit" id="submitBtn" class="w-2/3 bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-black transition">Publish Plate</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+
+  <script>
+    let fetchedRestaurants = [];
+    let originalImg = new Image();
+    let isImageLoaded = false;
+    let activeFilter = { brightness: 105, saturation: 120, contrast: 105 };
+
+    const fileInput = document.getElementById('photoFileInput');
+    const editorContainer = document.getElementById('imageEditorContainer');
+    const canvas = document.getElementById('photoCanvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const plateForm = document.getElementById('platePostForm');
+    const modalOverlay = document.getElementById('postModalOverlay');
+
+    // --- ACCORDION COMMENTS TOGGLE ---
+    function toggleComments(plateId) {
+      const drawer = document.getElementById(`comments-drawer-${plateId}`);
+      const arrow = document.getElementById(`comment-arrow-${plateId}`);
+      if (!drawer) return;
+
+      const isHidden = drawer.classList.contains('hidden');
+      if (isHidden) {
+        drawer.classList.remove('hidden');
+        if (arrow) arrow.innerText = '▲';
+      } else {
+        drawer.classList.add('hidden');
+        if (arrow) arrow.innerText = '▼';
+      }
+    }
+
+    // --- MODAL CONTROLS ---
+    function openPostModal() {
+      if (modalOverlay) {
+        modalOverlay.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+      }
+    }
+
+    function closePostModal() {
+      if (modalOverlay) {
+        modalOverlay.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    if (modalOverlay) {
+      modalOverlay.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) closePostModal();
+      });
+    }
+
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modalOverlay && !modalOverlay.classList.contains('hidden')) {
+        closePostModal();
+      }
+    });
+
+    // --- DISCOVERY GPS FILTER & INPUT CLEANUP ---
+    function cleanEmptyCoordinates(form) {
+      const latField = document.getElementById('feedLat');
+      const lonField = document.getElementById('feedLon');
+      if (!latField.value) latField.disabled = true;
+      if (!lonField.value) lonField.disabled = true;
+    }
+
+    function searchNearMeGPS() {
+      const btn = document.getElementById('gpsBtn');
+      if (!navigator.geolocation) {
+        alert("Geolocation not supported.");
+        return;
+      }
+      btn.innerText = "Finding GPS...";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const latField = document.getElementById('feedLat');
+          const lonField = document.getElementById('feedLon');
+          latField.disabled = false;
+          lonField.disabled = false;
+          latField.value = pos.coords.latitude;
+          lonField.value = pos.coords.longitude;
+          document.getElementById('locInput').value = "";
+          document.getElementById('discoveryForm').submit();
+        },
+        (err) => {
+          alert("Could not retrieve GPS location.");
+          btn.innerText = "📍 Use My GPS";
+        }
+      );
+    }
+
+    function toggleRatingFields(checkbox) {
+      const fields = document.getElementById('ratingFields');
+      if (fields) fields.style.display = checkbox.checked ? 'none' : 'block';
+    }
+
+    // --- PHOTO EDITOR LOGIC ---
+    if (fileInput) {
+      fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          originalImg.onload = function() {
+            isImageLoaded = true;
+            const size = Math.min(originalImg.width, originalImg.height);
+            canvas.width = size;
+            canvas.height = size;
+            editorContainer.classList.remove('hidden');
+            setPreset('warm');
+          };
+          originalImg.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function setPreset(type) {
+      if (type === 'natural') activeFilter = { brightness: 100, saturation: 100, contrast: 100 };
+      else if (type === 'warm') activeFilter = { brightness: 106, saturation: 125, contrast: 105 };
+      else if (type === 'punch') activeFilter = { brightness: 105, saturation: 140, contrast: 115 };
+
+      document.getElementById('sliderBrightness').value = activeFilter.brightness;
+      document.getElementById('sliderSaturation').value = activeFilter.saturation;
+      applyFilters();
+    }
+
+    function applyFilters() {
+      if (!isImageLoaded || !ctx) return;
+      const b = document.getElementById('sliderBrightness').value;
+      const s = document.getElementById('sliderSaturation').value;
+
+      document.getElementById('brightnessVal').innerText = b + '%';
+      document.getElementById('saturationVal').innerText = s + '%';
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.filter = `brightness(${b}%) saturate(${s}%) contrast(${activeFilter.contrast}%)`;
+
+      const minDim = Math.min(originalImg.width, originalImg.height);
+      const sx = (originalImg.width - minDim) / 2;
+      const sy = (originalImg.height - minDim) / 2;
+      ctx.drawImage(originalImg, sx, sy, minDim, minDim, 0, 0, canvas.width, canvas.height);
+    }
+
+    if (plateForm) {
+      plateForm.addEventListener('submit', function(e) {
+        if (!isImageLoaded || !fileInput.files || fileInput.files.length === 0) return;
+        e.preventDefault();
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Exporting Edited Photo...";
+
+        canvas.toBlob((blob) => {
+          const editedFile = new File([blob], "edited_plate.jpg", { type: "image/jpeg" });
+          const dt = new DataTransfer();
+          dt.items.add(editedFile);
+          fileInput.files = dt.files;
+          isImageLoaded = false;
+          plateForm.submit();
+        }, 'image/jpeg', 0.88);
+      });
+    }
+
+    // --- GOOGLE PLACES MODAL LOOKUPS ---
+    function locateRestaurantGPS() {
+      const btn = document.getElementById('postLocBtn');
+      if (!navigator.geolocation) return;
+      btn.innerText = "Locating...";
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          document.getElementById('latField').value = lat;
+          document.getElementById('lonField').value = lon;
+          btn.innerText = "Searching...";
+
+          try {
+            const res = await fetch(`/api/restaurants/nearby?lat=${lat}&lon=${lon}`);
+            const data = await res.json();
+            populateDropdown(data);
+          } catch (err) {
+            alert("Network error fetching restaurants.");
+          } finally {
+            btn.innerHTML = "<span>📍 Find Near Me</span>";
+          }
+        },
+        (err) => {
+          alert("Location timed out or denied.");
+          btn.innerHTML = "<span>📍 Find Near Me</span>";
+        }
+      );
+    }
+
+    async function searchPostLocation() {
+      const input = document.getElementById('postLocSearchInput');
+      const btn = document.getElementById('postSearchBtn');
+      const query = input.value.trim();
+      if (!query) return;
+
+      btn.innerText = "...";
+      try {
+        const res = await fetch(`/api/restaurants/search?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        populateDropdown(data);
+      } catch (err) {
+        alert("Search error connecting to server.");
+      } finally {
+        btn.innerText = "Search";
+      }
+    }
+
+    function populateDropdown(items) {
+      fetchedRestaurants = items;
+      const select = document.getElementById('restaurantSelect');
+      const container = document.getElementById('resultsContainer');
+      select.innerHTML = '<option value="">-- Choose from results (' + items.length + ' found) --</option>';
+
+      if (!items || items.length === 0) {
+        alert("No restaurants found.");
+        container.classList.add('hidden');
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.textContent = `${item.name} (${item.address || 'Address on file'})`;
+        select.appendChild(opt);
+      });
+      container.classList.remove('hidden');
+    }
+
+    function applySelectedRestaurant(dropdown) {
+      const index = dropdown.value;
+      if (index === "" || !fetchedRestaurants[index]) return;
+      const selected = fetchedRestaurants[index];
+      document.getElementById('restaurantName').value = selected.name || "";
+      document.getElementById('restaurantAddress').value = selected.address || "";
+      document.getElementById('restaurantWebsite').value = selected.website || "";
+      if (selected.lat) document.getElementById('latField').value = selected.lat;
+      if (selected.lon) document.getElementById('lonField').value = selected.lon;
+    }
+  </script>
+</body>
+</html>
