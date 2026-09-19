@@ -1,19 +1,16 @@
 import os
-import sqlite3
-from pathlib import Path
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-DB_FILE = str(DATA_DIR / "platerate.db")
+# Reads the injected Railway DATABASE_URL, with a fallback for local testing
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/platerate"
+)
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    # Enable Write-Ahead Logging for high concurrency
-    conn.execute("PRAGMA journal_mode=WAL;")
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return conn
 
 
@@ -24,52 +21,57 @@ def init_db():
     # Users
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL
-    )""")
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL
+    );
+    """)
 
     # Plates
     c.execute("""
     CREATE TABLE IF NOT EXISTS plates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        dish_name TEXT NOT NULL,
-        restaurant TEXT NOT NULL,
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        dish_name VARCHAR(255) NOT NULL,
+        restaurant VARCHAR(255) NOT NULL,
         restaurant_address TEXT,
         restaurant_website TEXT,
-        latitude REAL,
-        longitude REAL,
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
         photo_url TEXT,
         rating INTEGER DEFAULT NULL,
-        reorder TEXT DEFAULT NULL,
+        reorder VARCHAR(50) DEFAULT NULL,
         is_sponsored INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )""")
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
 
     # Likes & Saves
     c.execute("""
     CREATE TABLE IF NOT EXISTS interactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        plate_id INTEGER NOT NULL,
-        type TEXT NOT NULL,
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plate_id INTEGER NOT NULL REFERENCES plates(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL,
         UNIQUE(user_id, plate_id, type)
-    )""")
+    );
+    """)
 
     # Comments
     c.execute("""
     CREATE TABLE IF NOT EXISTS comments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        plate_id INTEGER NOT NULL,
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plate_id INTEGER NOT NULL REFERENCES plates(id) ON DELETE CASCADE,
         comment TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )""")
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
 
     conn.commit()
+    c.close()
     conn.close()
+    print("[Postgres] Database tables checked/initialized successfully.")
 
 
 if __name__ == "__main__":

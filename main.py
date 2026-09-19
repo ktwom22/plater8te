@@ -26,11 +26,11 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Run migrations/table creation
 init_db()
 
 app = FastAPI()
-
-# Required for Railway to pass client IP and HTTPS headers properly
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
@@ -44,12 +44,13 @@ def get_current_user(request: Request):
     try:
         conn = get_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE id = ?", (int(user_id),))
+        c.execute("SELECT * FROM users WHERE id = %s", (int(user_id),))
         user = c.fetchone()
+        c.close()
         conn.close()
         return user
     except Exception as e:
-        print(f"[!] Error reading current user: {e}")
+        print(f"[!] Error fetching current user: {e}")
         return None
 
 
@@ -66,14 +67,12 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
-# --- AUTHENTICATION (FAIL-SAFE) ---
+# --- AUTHENTICATION ---
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), email: str = Form(...)):
     clean_user = username.strip()
     clean_email = email.strip()
-
-    print(f"[*] Sign-in attempt for: user='{clean_user}', email='{clean_email}'")
 
     if not clean_user or not clean_email:
         return RedirectResponse(url="/", status_code=303)
@@ -82,45 +81,37 @@ async def login(request: Request, username: str = Form(...), email: str = Form(.
     conn = get_connection()
     c = conn.cursor()
     try:
-        # Check if user already exists
-        c.execute("SELECT id FROM users WHERE username = ? OR email = ?", (clean_user, clean_email))
+        c.execute("SELECT id FROM users WHERE username = %s OR email = %s", (clean_user, clean_email))
         existing = c.fetchone()
 
         if existing:
             user_id = existing["id"]
-            print(f"[+] Existing user found: ID {user_id}")
         else:
             c.execute(
-                "INSERT INTO users (username, email) VALUES (?, ?)",
+                "INSERT INTO users (username, email) VALUES (%s, %s) RETURNING id",
                 (clean_user, clean_email)
             )
+            user_id = c.fetchone()["id"]
             conn.commit()
-            user_id = c.lastrowid
-            print(f"[+] Created new user: ID {user_id}")
-
     except Exception as e:
-        print(f"[!] Critical login database failure: {e}")
+        conn.rollback()
+        print(f"[!] Login error: {e}")
         traceback.print_exc()
     finally:
+        c.close()
         conn.close()
 
     response = RedirectResponse(url="/", status_code=303)
-
     if user_id:
-        # Set cookie universally compatible with both HTTPS (Railway) and local dev
         response.set_cookie(
             key="user_id",
             value=str(user_id),
-            httponly=False,  # Allow client access if needed
+            httponly=False,
             samesite="lax",
-            secure=False,    # Avoid dropping over HTTP/proxy redirects
-            max_age=2592000, # 30 days
+            secure=False,
+            max_age=2592000,
             path="/"
         )
-        print(f"[+] Set user_id cookie: {user_id}")
-    else:
-        print("[!] Login failed: No user_id could be resolved.")
-
     return response
 
 
@@ -257,18 +248,20 @@ async def home(
         JOIN users u ON p.user_id = u.id
         ORDER BY p.is_sponsored DESC, p.created_at DESC
     """)
-    all_plates = [dict(row) for row in c.fetchall()]
+    all_plates = c.fetchall()
 
+    # Query comments per plate
     for plate in all_plates:
         c.execute("""
-            SELECT c.id, c.comment, c.created_at, u.username
+            SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
             FROM comments c
             JOIN users u ON c.user_id = u.id
-            WHERE c.plate_id = ?
+            WHERE c.plate_id = %s
             ORDER BY c.created_at ASC
         """, (plate["id"],))
-        plate["comments"] = [dict(r) for r in c.fetchall()]
+        plate["comments"] = c.fetchall()
 
+    c.close()
     conn.close()
 
     filtered_plates = []
@@ -331,29 +324,30 @@ async def favorites_page(request: Request, q: str = Query(None)):
         FROM interactions i
         JOIN plates p ON i.plate_id = p.id
         JOIN users u ON p.user_id = u.id
-        WHERE i.user_id = ? AND i.type = 'save'
+        WHERE i.user_id = %s AND i.type = 'save'
     """
     params = [user["id"]]
 
     if q:
         search_pattern = f"%{q.strip()}%"
-        query_str += " AND (p.dish_name LIKE ? OR p.restaurant LIKE ? OR p.restaurant_address LIKE ?)"
+        query_str += " AND (p.dish_name ILIKE %s OR p.restaurant ILIKE %s OR p.restaurant_address ILIKE %s)"
         params.extend([search_pattern, search_pattern, search_pattern])
 
     query_str += " ORDER BY p.created_at DESC"
     c.execute(query_str, tuple(params))
-    saved_plates = [dict(r) for r in c.fetchall()]
+    saved_plates = c.fetchall()
 
     for plate in saved_plates:
         c.execute("""
-            SELECT c.id, c.comment, c.created_at, u.username
+            SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
             FROM comments c
             JOIN users u ON c.user_id = u.id
-            WHERE c.plate_id = ?
+            WHERE c.plate_id = %s
             ORDER BY c.created_at ASC
         """, (plate["id"],))
-        plate["comments"] = [dict(r) for r in c.fetchall()]
+        plate["comments"] = c.fetchall()
 
+    c.close()
     conn.close()
 
     return templates.TemplateResponse(
@@ -379,10 +373,11 @@ async def my_plates_page(request: Request):
                (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'save') AS saves,
                (SELECT COUNT(*) FROM comments WHERE plate_id = p.id) AS comment_count
         FROM plates p
-        WHERE p.user_id = ?
+        WHERE p.user_id = %s
         ORDER BY p.created_at DESC
     """, (user["id"],))
     my_plates = c.fetchall()
+    c.close()
     conn.close()
 
     unrated_plates = [p for p in my_plates if p["rating"] is None]
@@ -436,14 +431,16 @@ async def create_plate(
         INSERT INTO plates (
             user_id, dish_name, restaurant, restaurant_address, 
             restaurant_website, latitude, longitude, photo_url, rating, reorder
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
     """, (
         user["id"], dish_name.strip(), restaurant.strip(),
         restaurant_address.strip(), restaurant_website.strip(),
         lat, lon, photo_url, final_rating, final_reorder
     ))
-    plate_id = c.lastrowid
+    plate_id = c.fetchone()["id"]
     conn.commit()
+    c.close()
     conn.close()
 
     if is_skipped:
@@ -452,7 +449,7 @@ async def create_plate(
     return RedirectResponse(url="/", status_code=303)
 
 
-# --- SOCIAL INTERACTIONS ---
+# --- INTERACTIONS ---
 
 @app.post("/plates/{plate_id}/interact")
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
@@ -463,19 +460,20 @@ async def interact_plate(plate_id: int, action_type: str = Form(...), request: R
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT id FROM interactions WHERE user_id = ? AND plate_id = ? AND type = ?",
+        "SELECT id FROM interactions WHERE user_id = %s AND plate_id = %s AND type = %s",
         (user["id"], plate_id, action_type),
     )
     existing = c.fetchone()
 
     if existing:
-        c.execute("DELETE FROM interactions WHERE id = ?", (existing["id"],))
+        c.execute("DELETE FROM interactions WHERE id = %s", (existing["id"],))
     else:
         c.execute(
-            "INSERT INTO interactions (user_id, plate_id, type) VALUES (?, ?, ?)",
+            "INSERT INTO interactions (user_id, plate_id, type) VALUES (%s, %s, %s)",
             (user["id"], plate_id, action_type),
         )
     conn.commit()
+    c.close()
     conn.close()
 
     referer = request.headers.get("referer") or "/"
@@ -492,10 +490,11 @@ async def add_comment(plate_id: int, comment: str = Form(...), request: Request 
         conn = get_connection()
         c = conn.cursor()
         c.execute(
-            "INSERT INTO comments (user_id, plate_id, comment) VALUES (?, ?, ?)",
+            "INSERT INTO comments (user_id, plate_id, comment) VALUES (%s, %s, %s)",
             (user["id"], plate_id, comment.strip()),
         )
         conn.commit()
+        c.close()
         conn.close()
 
     referer = request.headers.get("referer") or f"/#plate-{plate_id}"
@@ -508,8 +507,9 @@ async def add_comment(plate_id: int, comment: str = Form(...), request: Request 
 async def rate_plate_page(plate_id: int, request: Request):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM plates WHERE id = ?", (plate_id,))
+    c.execute("SELECT * FROM plates WHERE id = %s", (plate_id,))
     plate = c.fetchone()
+    c.close()
     conn.close()
 
     if not plate:
@@ -532,10 +532,11 @@ async def submit_delayed_rating(
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "UPDATE plates SET rating = ?, reorder = ? WHERE id = ?",
+        "UPDATE plates SET rating = %s, reorder = %s WHERE id = %s",
         (rating, reorder, plate_id),
     )
     conn.commit()
+    c.close()
     conn.close()
     return RedirectResponse(url=redirect_to, status_code=303)
 

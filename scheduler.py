@@ -8,7 +8,6 @@ from database import get_connection
 scheduler = BackgroundScheduler()
 scheduler.start()
 
-# Load credentials from Railway environment variables (or fall back to defaults)
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SMTP_USER = os.environ.get("SMTP_USER", "your-email@gmail.com")
@@ -20,17 +19,14 @@ def check_and_send_rating_reminder(plate_id: int, user_email: str):
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT dish_name, restaurant, rating FROM plates WHERE id = ?",
+        "SELECT dish_name, restaurant, rating FROM plates WHERE id = %s",
         (plate_id,),
     )
     plate = c.fetchone()
+    c.close()
     conn.close()
 
-    if not plate:
-        return
-
-    # If the user already rated it, cancel email
-    if plate["rating"] is not None:
+    if not plate or plate["rating"] is not None:
         return
 
     dish_name = plate["dish_name"]
