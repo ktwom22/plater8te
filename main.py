@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from database import init_db, get_connection
 from scheduler import schedule_rating_reminder
 
-# Read API Key from Railway environment variables, with local fallback
+# Read API Key from Railway environment variables, with fallback
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "YOUR_GOOGLE_PLACES_API_KEY")
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -64,7 +64,7 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 @app.get("/api/restaurants/nearby")
 async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...)):
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
-        return JSONResponse({"error": "Google Places API Key is not set in environment or code"}, status_code=500)
+        return JSONResponse({"error": "Google Places API Key is not set"}, status_code=500)
 
     url = "https://places.googleapis.com/v1/places:searchNearby"
     headers = {
@@ -89,7 +89,6 @@ async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...
             data = resp.json()
 
             if resp.status_code != 200:
-                print(f"[!] Google Places error {resp.status_code}: {data}")
                 return JSONResponse({"error": f"Google error: {data}"}, status_code=500)
 
             results = []
@@ -113,7 +112,7 @@ async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...
 @app.get("/api/restaurants/search")
 async def search_restaurants(query: str = Query(...)):
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
-        return JSONResponse({"error": "Google Places API Key is not set in environment or code"}, status_code=500)
+        return JSONResponse({"error": "Google Places API Key is not set"}, status_code=500)
 
     url = "https://places.googleapis.com/v1/places:searchText"
     headers = {
@@ -132,7 +131,6 @@ async def search_restaurants(query: str = Query(...)):
             data = resp.json()
 
             if resp.status_code != 200:
-                print(f"[!] Google Search error {resp.status_code}: {data}")
                 return JSONResponse({"error": f"Google error: {data}"}, status_code=500)
 
             results = []
@@ -234,9 +232,9 @@ async def home(
         filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
     return templates.TemplateResponse(
-        "feed.html",
-        {
-            "request": request,
+        request=request,
+        name="feed.html",
+        context={
             "user": user,
             "plates": filtered_plates,
             "food_query": food_query or "",
@@ -292,8 +290,9 @@ async def favorites_page(request: Request, q: str = Query(None)):
     conn.close()
 
     return templates.TemplateResponse(
-        "favorites.html",
-        {"request": request, "user": user, "plates": saved_plates, "search_q": q or ""}
+        request=request,
+        name="favorites.html",
+        context={"user": user, "plates": saved_plates, "search_q": q or ""}
     )
 
 
@@ -323,8 +322,9 @@ async def my_plates_page(request: Request):
     rated_plates = [p for p in my_plates if p["rating"] is not None]
 
     return templates.TemplateResponse(
-        "my_plates.html",
-        {"request": request, "user": user, "unrated": unrated_plates, "rated": rated_plates}
+        request=request,
+        name="my_plates.html",
+        context={"user": user, "unrated": unrated_plates, "rated": rated_plates}
     )
 
 
@@ -476,7 +476,11 @@ async def rate_plate_page(plate_id: int, request: Request):
     if not plate:
         return HTMLResponse("Plate not found", status_code=404)
 
-    return templates.TemplateResponse("rate_reminder.html", {"request": request, "plate": plate})
+    return templates.TemplateResponse(
+        request=request,
+        name="rate_reminder.html",
+        context={"plate": plate}
+    )
 
 
 @app.post("/plates/{plate_id}/rate")
