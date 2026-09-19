@@ -3,7 +3,6 @@ import sqlite3
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-# If deployed on Railway with a volume mounted at /app/data, DATA_DIR points there
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -11,8 +10,10 @@ DB_FILE = str(DATA_DIR / "platerate.db")
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Enable Write-Ahead Logging for high concurrency
+    conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
 

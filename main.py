@@ -10,11 +10,11 @@ from fastapi import FastAPI, Form, Request, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from database import init_db, get_connection
 from scheduler import schedule_rating_reminder
 
-# Read API Key from Railway environment variables, with fallback
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "YOUR_GOOGLE_PLACES_API_KEY")
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -29,6 +29,10 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 init_db()
 
 app = FastAPI()
+
+# Required for Railway to pass client IP and HTTPS headers properly
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -37,19 +41,22 @@ def get_current_user(request: Request):
     user_id = request.cookies.get("user_id")
     if not user_id:
         return None
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    user = c.fetchone()
-    conn.close()
-    return user
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT * FROM users WHERE id = ?", (int(user_id),))
+        user = c.fetchone()
+        conn.close()
+        return user
+    except Exception as e:
+        print(f"[!] Error reading current user: {e}")
+        return None
 
 
 def haversine_miles(lat1, lon1, lat2, lon2):
-    """Calculates distance between two coordinates in miles."""
     if not all([lat1, lon1, lat2, lon2]):
         return 999999.0
-    r = 3958.8  # Earth radius in miles
+    r = 3958.8
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = (math.sin(dlat / 2) ** 2 +
@@ -59,7 +66,72 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
-# --- GOOGLE PLACES API (NEW) ENDPOINTS ---
+# --- AUTHENTICATION (FAIL-SAFE) ---
+
+@app.post("/login")
+async def login(request: Request, username: str = Form(...), email: str = Form(...)):
+    clean_user = username.strip()
+    clean_email = email.strip()
+
+    print(f"[*] Sign-in attempt for: user='{clean_user}', email='{clean_email}'")
+
+    if not clean_user or not clean_email:
+        return RedirectResponse(url="/", status_code=303)
+
+    user_id = None
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        # Check if user already exists
+        c.execute("SELECT id FROM users WHERE username = ? OR email = ?", (clean_user, clean_email))
+        existing = c.fetchone()
+
+        if existing:
+            user_id = existing["id"]
+            print(f"[+] Existing user found: ID {user_id}")
+        else:
+            c.execute(
+                "INSERT INTO users (username, email) VALUES (?, ?)",
+                (clean_user, clean_email)
+            )
+            conn.commit()
+            user_id = c.lastrowid
+            print(f"[+] Created new user: ID {user_id}")
+
+    except Exception as e:
+        print(f"[!] Critical login database failure: {e}")
+        traceback.print_exc()
+    finally:
+        conn.close()
+
+    response = RedirectResponse(url="/", status_code=303)
+
+    if user_id:
+        # Set cookie universally compatible with both HTTPS (Railway) and local dev
+        response.set_cookie(
+            key="user_id",
+            value=str(user_id),
+            httponly=False,  # Allow client access if needed
+            samesite="lax",
+            secure=False,    # Avoid dropping over HTTP/proxy redirects
+            max_age=2592000, # 30 days
+            path="/"
+        )
+        print(f"[+] Set user_id cookie: {user_id}")
+    else:
+        print("[!] Login failed: No user_id could be resolved.")
+
+    return response
+
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie(key="user_id", path="/")
+    return response
+
+
+# --- GOOGLE PLACES API ---
 
 @app.get("/api/restaurants/nearby")
 async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...)):
@@ -105,7 +177,6 @@ async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...
                 })
             return JSONResponse(results)
     except Exception as e:
-        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
@@ -120,10 +191,7 @@ async def search_restaurants(query: str = Query(...)):
         "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
         "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location"
     }
-    payload = {
-        "textQuery": f"restaurants in {query}",
-        "maxResultCount": 20
-    }
+    payload = {"textQuery": f"restaurants in {query}", "maxResultCount": 20}
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -147,11 +215,10 @@ async def search_restaurants(query: str = Query(...)):
                 })
             return JSONResponse(results)
     except Exception as e:
-        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# --- MAIN FEED & AREA DISCOVERY ---
+# --- MAIN FEED ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -245,7 +312,7 @@ async def home(
     )
 
 
-# --- FAVORITES PAGE ---
+# --- FAVORITES ---
 
 @app.get("/favorites", response_class=HTMLResponse)
 async def favorites_page(request: Request, q: str = Query(None)):
@@ -296,7 +363,7 @@ async def favorites_page(request: Request, q: str = Query(None)):
     )
 
 
-# --- USER PROFILE & PENDING RATINGS ---
+# --- MY PLATES ---
 
 @app.get("/my-plates", response_class=HTMLResponse)
 async def my_plates_page(request: Request):
@@ -328,35 +395,7 @@ async def my_plates_page(request: Request):
     )
 
 
-# --- AUTHENTICATION ---
-
-@app.post("/login")
-async def login(username: str = Form(...), email: str = Form(...)):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT OR IGNORE INTO users (username, email) VALUES (?, ?)",
-        (username.strip(), email.strip()),
-    )
-    conn.commit()
-    c.execute("SELECT id FROM users WHERE username = ?", (username.strip(),))
-    row = c.fetchone()
-    conn.close()
-
-    response = RedirectResponse(url="/", status_code=303)
-    if row:
-        response.set_cookie(key="user_id", value=str(row["id"]))
-    return response
-
-
-@app.get("/logout")
-async def logout():
-    response = RedirectResponse(url="/", status_code=303)
-    response.delete_cookie(key="user_id")
-    return response
-
-
-# --- PLATE ACTIONS ---
+# --- PLATE CREATION ---
 
 @app.post("/plates")
 async def create_plate(
@@ -463,7 +502,7 @@ async def add_comment(plate_id: int, comment: str = Form(...), request: Request 
     return RedirectResponse(url=referer, status_code=303)
 
 
-# --- DELAYED RATING REMINDER LANDING ---
+# --- DELAYED RATING ---
 
 @app.get("/plates/{plate_id}/rate", response_class=HTMLResponse)
 async def rate_plate_page(plate_id: int, request: Request):
@@ -501,7 +540,6 @@ async def submit_delayed_rating(
     return RedirectResponse(url=redirect_to, status_code=303)
 
 
-# Dynamic Port Binding for Railway / Local Execution
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
