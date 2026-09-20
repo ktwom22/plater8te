@@ -54,8 +54,9 @@ CATEGORIES = [
     {"name": "Other", "icon": "🍽️"}
 ]
 
-# Comprehensive blocklist to filter out national fast food drive-thrus
-FAST_FOOD_BLOCKLIST = {
+# Comprehensive blocklist: fast food, gas stations, smoke/vape shops, retreats, and non-dining spots
+NON_RESTAURANT_BLOCKLIST = {
+    # Fast Food & National Chains
     "mcdonald's", "mcdonalds", "burger king", "wendy's", "wendys", "taco bell",
     "subway", "kfc", "kentucky fried chicken", "pizza hut", "domino's", "dominos",
     "papa john's", "papa johns", "little caesars", "popeyes", "chick-fil-a", "chick fil a",
@@ -64,20 +65,38 @@ FAST_FOOD_BLOCKLIST = {
     "hardee's", "hardees", "carl's jr.", "carls jr", "five guys", "jimmy john's",
     "jimmy johns", "jersey mike's", "jersey mikes", "chipotle", "chipotle mexican grill",
     "wingstop", "raising cane's", "raising canes", "culver's", "culvers", "white castle",
-    "whataburger", "checkers", "rally's", "del taco", "church's chicken", "church's texas chicken",
-    "panera bread", "tim hortons", "baskin-robbins", "firehouse subs"
+    "whataburger", "checkers", "rally's", "del taco", "church's chicken",
+    "panera bread", "tim hortons", "baskin-robbins", "firehouse subs",
+
+    # Gas Stations, Convenience & Fuel Stops
+    "nouria", "cumberland farms", "cumby's", "circle k", "7-eleven", "7 eleven",
+    "irving", "mobil", "exxon", "shell", "citgo", "bp", "sunoco", "speedway",
+    "wawa", "sheetz", "casey's", "gulf", "gas station", "convenience", "mini mart", "mart",
+
+    # Smoke, Vape & Retail
+    "smoke", "vape", "tobacco", "cbd", "dispensary", "beverage", "liquor", "package store",
+
+    # Spiritual / Retreats / Non-dining
+    "spiritual", "retreat", "renewal", "church", "center for", "ecological"
+}
+
+# Explicit Google Places type exclusions
+EXCLUDED_GOOGLE_TYPES = {
+    "gas_station", "convenience_store", "liquor_store", "tobacco_shop",
+    "place_of_worship", "grocery_store", "supermarket", "fast_food_restaurant"
 }
 
 
-def is_fast_food(name: str, types: list = None) -> bool:
-    """Returns True if the place matches fast-food types or corporate chain names."""
+def is_invalid_spot(name: str, types: list = None) -> bool:
+    """Returns True if the place matches fast-food chains, gas stations, vape shops, or non-eateries."""
     name_lower = name.lower()
-    for chain in FAST_FOOD_BLOCKLIST:
-        if chain in name_lower:
+    for bad_term in NON_RESTAURANT_BLOCKLIST:
+        if bad_term in name_lower:
             return True
+
     if types:
         for t in types:
-            if "fast_food" in t.lower():
+            if t.lower() in EXCLUDED_GOOGLE_TYPES or "fast_food" in t.lower():
                 return True
     return False
 
@@ -112,10 +131,10 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
-# --- GOOGLE PLACES API INTERNAL SEARCH HELPERS ---
+# --- GOOGLE PLACES API HELPERS ---
 
 async def fetch_area_restaurants_gps(lat: float, lon: float):
-    """Fetches local independent restaurants via GPS from Google Places."""
+    """Fetches local independent dining venues via GPS coordinates."""
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
         return []
 
@@ -126,13 +145,17 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
         "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
     }
     payload = {
-        "includedTypes": ["restaurant", "cafe", "bakery", "bar"],
-        "excludedTypes": ["fast_food_restaurant"],
+        "includedTypes": [
+            "restaurant", "bar_and_grill", "hamburger_restaurant",
+            "pizza_restaurant", "mexican_restaurant", "italian_restaurant",
+            "seafood_restaurant", "bar", "cafe", "bakery"
+        ],
+        "excludedTypes": list(EXCLUDED_GOOGLE_TYPES),
         "maxResultCount": 20,
         "locationRestriction": {
             "circle": {
                 "center": {"latitude": lat, "longitude": lon},
-                "radius": 5000.0  # ~3.1 miles radius
+                "radius": 8000.0  # ~5.0 miles
             }
         }
     }
@@ -147,7 +170,7 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
             for place in data.get("places", []):
                 name = place.get("displayName", {}).get("text", "")
                 types = place.get("types", [])
-                if not name or is_fast_food(name, types):
+                if not name or is_invalid_spot(name, types):
                     continue
                 p_lat = place.get("location", {}).get("latitude")
                 p_lon = place.get("location", {}).get("longitude")
@@ -181,7 +204,8 @@ async def fetch_area_restaurants_query(query_text: str):
         "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
     }
     payload = {
-        "textQuery": f"best local restaurants in {query_text}",
+        "textQuery": f"restaurants dining burgers pizza in {query_text}",
+        "includedType": "restaurant",
         "maxResultCount": 20
     }
 
@@ -195,7 +219,7 @@ async def fetch_area_restaurants_query(query_text: str):
             for place in data.get("places", []):
                 name = place.get("displayName", {}).get("text", "")
                 types = place.get("types", [])
-                if not name or is_fast_food(name, types):
+                if not name or is_invalid_spot(name, types):
                     continue
                 spots.append({
                     "name": name,
@@ -331,7 +355,7 @@ async def logout():
     return response
 
 
-# --- MAIN FEED ROUTE (WITH EXPLORE AREA RESTAURANTS) ---
+# --- MAIN FEED ROUTE ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -422,7 +446,7 @@ async def home(
     if parsed_lat is not None and parsed_lon is not None:
         filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
-    # --- POPULATE AREA RESTAURANTS IF DISHES ARE LOW OR LOCATION IS SPECIFIED ---
+    # Fetch Google Places for Discovery
     discovered_restaurants = []
     area_label = ""
 
@@ -433,8 +457,7 @@ async def home(
         area_label = f"Spots in {location_query.strip().title()}"
         discovered_restaurants = await fetch_area_restaurants_query(location_query.strip())
     elif len(filtered_plates) == 0:
-        # Default explore fallback
-        area_label = "Trending Food Spots"
+        area_label = "Top Independent Spots"
         discovered_restaurants = await fetch_area_restaurants_query("local dining")
 
     return templates.TemplateResponse(
@@ -602,7 +625,7 @@ async def create_plate(
     return RedirectResponse(url="/", status_code=303)
 
 
-# --- INTERACTIONS ---
+# --- SOCIAL INTERACTIONS ---
 
 @app.post("/plates/{plate_id}/interact")
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
