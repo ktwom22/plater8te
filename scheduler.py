@@ -12,7 +12,7 @@ SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SMTP_USER = os.environ.get("SMTP_USER", "your-email@gmail.com")
 SMTP_PASS = os.environ.get("SMTP_PASS", "your-app-password")
-APP_URL = os.environ.get("APP_URL", "http://127.0.0.1:8000")
+APP_URL = os.environ.get("APP_URL", "https://r8theplate.com")
 
 
 def check_and_send_rating_reminder(plate_id: int, user_email: str):

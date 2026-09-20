@@ -5,6 +5,8 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 import httpx
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 from fastapi import FastAPI, Form, Request, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -14,6 +16,8 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from database import init_db, get_connection
 from scheduler import schedule_rating_reminder
+
+ph = PasswordHasher()
 
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "YOUR_GOOGLE_PLACES_API_KEY")
 
@@ -27,7 +31,6 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Run migrations/table creation
 init_db()
 
 app = FastAPI()
@@ -44,7 +47,7 @@ def get_current_user(request: Request):
     try:
         conn = get_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE id = %s", (int(user_id),))
+        c.execute("SELECT id, username, email FROM users WHERE id = %s", (int(user_id),))
         user = c.fetchone()
         c.close()
         conn.close()
@@ -67,51 +70,100 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
-# --- AUTHENTICATION ---
+# --- AUTHENTICATION ROUTES ---
 
-@app.post("/login")
-async def login(request: Request, username: str = Form(...), email: str = Form(...)):
-    clean_user = username.strip()
-    clean_email = email.strip()
+@app.post("/signup")
+async def signup(
+    request: Request,
+    username: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...)
+):
+    clean_user = username.strip().lower()
+    clean_email = email.strip().lower()
+    clean_pass = password.strip()
 
-    if not clean_user or not clean_email:
-        return RedirectResponse(url="/", status_code=303)
+    if len(clean_user) < 3:
+        return RedirectResponse(url="/?auth_error=Username must be at least 3 characters.#auth", status_code=303)
+    if len(clean_pass) < 6:
+        return RedirectResponse(url="/?auth_error=Password must be at least 6 characters.#auth", status_code=303)
 
-    user_id = None
+    pwd_hash = ph.hash(clean_pass)
+
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("SELECT id FROM users WHERE username = %s OR email = %s", (clean_user, clean_email))
-        existing = c.fetchone()
+        c.execute("SELECT username, email FROM users WHERE username = %s OR email = %s", (clean_user, clean_email))
+        conflict = c.fetchone()
+        if conflict:
+            err_msg = "Username is already taken." if conflict["username"] == clean_user else "Email is already registered."
+            return RedirectResponse(url=f"/?auth_error={err_msg}#auth", status_code=303)
 
-        if existing:
-            user_id = existing["id"]
-        else:
-            c.execute(
-                "INSERT INTO users (username, email) VALUES (%s, %s) RETURNING id",
-                (clean_user, clean_email)
-            )
-            user_id = c.fetchone()["id"]
-            conn.commit()
+        c.execute("""
+            INSERT INTO users (username, email, password_hash)
+            VALUES (%s, %s, %s)
+            RETURNING id
+        """, (clean_user, clean_email, pwd_hash))
+        new_id = c.fetchone()["id"]
+        conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"[!] Login error: {e}")
-        traceback.print_exc()
+        print(f"[!] Signup error: {e}")
+        return RedirectResponse(url="/?auth_error=An error occurred creating your account.#auth", status_code=303)
     finally:
         c.close()
         conn.close()
 
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     response = RedirectResponse(url="/", status_code=303)
-    if user_id:
-        response.set_cookie(
-            key="user_id",
-            value=str(user_id),
-            httponly=False,
-            samesite="lax",
-            secure=False,
-            max_age=2592000,
-            path="/"
-        )
+    response.set_cookie(
+        key="user_id",
+        value=str(new_id),
+        httponly=True,
+        samesite="lax",
+        secure=is_https,
+        max_age=2592000,
+        path="/"
+    )
+    return response
+
+
+@app.post("/login")
+async def login(
+    request: Request,
+    identifier: str = Form(...),
+    password: str = Form(...)
+):
+    clean_id = identifier.strip().lower()
+    clean_pass = password.strip()
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username = %s OR email = %s", (clean_id, clean_id))
+    user = c.fetchone()
+    c.close()
+    conn.close()
+
+    if not user:
+        return RedirectResponse(url="/?auth_error=No account found with that username or email.#auth", status_code=303)
+
+    if user.get("password_hash"):
+        try:
+            ph.verify(user["password_hash"], clean_pass)
+        except VerifyMismatchError:
+            return RedirectResponse(url="/?auth_error=Incorrect password.#auth", status_code=303)
+
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key="user_id",
+        value=str(user["id"]),
+        httponly=True,
+        samesite="lax",
+        secure=is_https,
+        max_age=2592000,
+        path="/"
+    )
     return response
 
 
@@ -209,7 +261,7 @@ async def search_restaurants(query: str = Query(...)):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# --- MAIN FEED ---
+# --- FEED ROUTE ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -218,7 +270,8 @@ async def home(
     location_query: str = Query(None),
     user_lat: str = Query(None),
     user_lon: str = Query(None),
-    radius_miles: float = Query(15.0)
+    radius_miles: float = Query(15.0),
+    auth_error: str = Query(None)
 ):
     parsed_lat = None
     parsed_lon = None
@@ -250,7 +303,6 @@ async def home(
     """)
     all_plates = c.fetchall()
 
-    # Query comments per plate
     for plate in all_plates:
         c.execute("""
             SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
@@ -300,7 +352,8 @@ async def home(
             "food_query": food_query or "",
             "location_query": location_query or "",
             "user_lat": parsed_lat if parsed_lat is not None else "",
-            "user_lon": parsed_lon if parsed_lon is not None else ""
+            "user_lon": parsed_lon if parsed_lon is not None else "",
+            "auth_error": auth_error
         },
     )
 
@@ -390,7 +443,7 @@ async def my_plates_page(request: Request):
     )
 
 
-# --- PLATE CREATION ---
+# --- CREATE PLATE ---
 
 @app.post("/plates")
 async def create_plate(

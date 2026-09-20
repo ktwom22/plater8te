@@ -18,7 +18,7 @@
           <a href="/logout" class="text-xs text-rose-500 font-semibold hover:underline">Log Out</a>
         </div>
       {% else %}
-        <span class="text-xs text-gray-500 font-medium">Guest Mode</span>
+        <a href="#auth" class="text-xs text-rose-600 font-bold hover:underline">Sign In / Join</a>
       {% endif %}
     </div>
 
@@ -60,16 +60,62 @@
       </form>
     </div>
 
-    <!-- Auth Card (Guest Only) -->
+    <!-- ================= MODERN TABBED AUTH CARD ================= -->
     {% if not user %}
-    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
-      <h2 class="font-bold text-lg mb-1">Sign In to Post</h2>
-      <p class="text-xs text-gray-500 mb-4">Enter a username and email to share plates, bookmark favorites, and get 45-min reminders.</p>
-      <form action="/login" method="post" class="space-y-3">
-        <input type="text" name="username" placeholder="Username" required class="w-full border border-gray-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none">
-        <input type="email" name="email" placeholder="Email address" required class="w-full border border-gray-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 outline-none">
-        <button type="submit" class="w-full bg-rose-600 text-white font-bold py-2.5 rounded-xl hover:bg-rose-700 transition">Start Posting</button>
-      </form>
+    <div id="auth" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-20">
+      <!-- Error Banner -->
+      {% if auth_error %}
+      <div class="bg-rose-50 border-b border-rose-200 p-3 text-center">
+        <p class="text-xs font-bold text-rose-700">⚠️ {{ auth_error }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Switchable Tabs -->
+      <div class="grid grid-cols-2 text-center border-b border-gray-100 bg-gray-50/70 text-xs font-extrabold text-gray-500">
+        <button type="button" onclick="switchAuthTab('login')" id="tabBtnLogin" class="py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition">
+          Log In
+        </button>
+        <button type="button" onclick="switchAuthTab('signup')" id="tabBtnSignup" class="py-3.5 border-b-2 border-transparent hover:text-gray-900 transition">
+          Create Account
+        </button>
+      </div>
+
+      <div class="p-6">
+        <!-- Log In Form -->
+        <form id="formLogin" action="/login" method="post" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Username or Email</label>
+            <input type="text" name="identifier" required placeholder="foodie_sam or sam@example.com" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Password</label>
+            <input type="password" name="password" required placeholder="••••••••" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+          </div>
+          <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.99] text-sm">
+            Sign In to PlateRate
+          </button>
+        </form>
+
+        <!-- Sign Up Form (Initially Hidden) -->
+        <form id="formSignup" action="/signup" method="post" class="space-y-4 hidden">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Pick a Username</label>
+            <input type="text" name="username" required placeholder="e.g. pizzaguy_99" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Email Address</label>
+            <input type="email" name="email" required placeholder="you@domain.com" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+            <p class="text-[10px] text-gray-400 mt-1">Used for 45-min review reminders and your account.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Create Password</label>
+            <input type="password" name="password" minlength="6" required placeholder="Minimum 6 characters" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+          </div>
+          <button type="submit" class="w-full bg-gray-900 hover:bg-black text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.99] text-sm">
+            Join the Plate Community
+          </button>
+        </form>
+      </div>
     </div>
     {% endif %}
 
@@ -174,7 +220,7 @@
               <div class="bg-gray-50 rounded-xl p-2.5 text-xs space-y-1 border border-gray-100">
                 <div class="flex justify-between items-center text-[11px]">
                   <span class="font-bold text-gray-900">@{{ c.username }}</span>
-                  <span class="text-gray-400 text-[10px]">{{ c.created_at[:16] }}</span>
+                  <span class="text-gray-400 text-[10px]">{{ c.formatted_date }}</span>
                 </div>
                 <p class="text-gray-700 leading-relaxed">{{ c.comment }}</p>
               </div>
@@ -188,7 +234,7 @@
               <button type="submit" class="bg-gray-900 text-white font-bold px-4 py-2 rounded-xl text-xs hover:bg-black transition">Post</button>
             </form>
             {% else %}
-              <p class="text-[11px] text-gray-400 italic">Sign in above to leave a comment.</p>
+              <p class="text-[11px] text-gray-400 italic"><a href="#auth" class="text-rose-600 underline">Sign in above</a> to leave a comment.</p>
             {% endif %}
           </div>
 
@@ -350,6 +396,28 @@
     const ctx = canvas ? canvas.getContext('2d') : null;
     const plateForm = document.getElementById('platePostForm');
     const modalOverlay = document.getElementById('postModalOverlay');
+
+    // --- TAB SWITCHER FOR AUTH ---
+    function switchAuthTab(tab) {
+      const loginForm = document.getElementById('formLogin');
+      const signupForm = document.getElementById('formSignup');
+      const tabLogin = document.getElementById('tabBtnLogin');
+      const tabSignup = document.getElementById('tabBtnSignup');
+
+      if (!loginForm || !signupForm) return;
+
+      if (tab === 'login') {
+        loginForm.classList.remove('hidden');
+        signupForm.classList.add('hidden');
+        tabLogin.className = "py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition font-extrabold";
+        tabSignup.className = "py-3.5 border-b-2 border-transparent hover:text-gray-900 transition";
+      } else {
+        signupForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+        tabSignup.className = "py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition font-extrabold";
+        tabLogin.className = "py-3.5 border-b-2 border-transparent hover:text-gray-900 transition";
+      }
+    }
 
     // --- ACCORDION COMMENTS TOGGLE ---
     function toggleComments(plateId) {
