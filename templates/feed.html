@@ -3,11 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PlateRate — Curated Plates & Honest Takes</title>
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-2MG2ZFJR99"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-2MG2ZFJR99');
+  </script>
+
+  <!-- Primary SEO Meta Tags -->
+  <title>PlateRate — Discover & Rate Local Dishes | Honest Food Reviews</title>
+  <meta name="title" content="PlateRate — Discover & Rate Local Dishes | Honest Food Reviews">
+  <meta name="description" content="Find the best plates and hidden dining gems near you. No chain fast-food drive-thrus. Explore honest, dish-by-dish community ratings, menu links, and Plate Roulette.">
+  <meta name="keywords" content="food discovery, local restaurant ratings, dish ratings, food reviews, non-chain restaurants, best burgers near me, best pizza, foodie community, restaurant roulette, PlateRate">
+  <meta name="author" content="PlateRate">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://r8theplate.com/">
+
+  <!-- Open Graph / Facebook / WhatsApp / iMessage Previews -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://r8theplate.com/">
+  <meta property="og:site_name" content="PlateRate">
+  <meta property="og:title" content="PlateRate — Rate the Plate, Not Just the Place">
+  <meta property="og:description" content="Discover dishes loved by real locals. Browse independent restaurants, filter by cravings, and let Plate Roulette pick your next meal.">
+  <meta property="og:image" content="https://r8theplate.com/static/og-preview.jpg">
+  <meta property="og:image:alt" content="PlateRate Food Discovery App">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card Previews -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://r8theplate.com/">
+  <meta name="twitter:title" content="PlateRate — Rate the Plate, Not Just the Place">
+  <meta name="twitter:description" content="Find the best local dishes, skip the fast-food chains, and read real dish reviews from your community.">
+  <meta name="twitter:image" content="https://r8theplate.com/static/og-preview.jpg">
+
+  <!-- Mobile & PWA Theme Colors -->
+  <meta name="theme-color" content="#f8fafc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PlateRate">
+
+  <!-- Favicons -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>">
+
+  <!-- Google Structured Data (JSON-LD) for Search Rich Snippets -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "PlateRate",
+    "url": "https://r8theplate.com",
+    "applicationCategory": "LifestyleApplication",
+    "operatingSystem": "All",
+    "description": "A localized food discovery and dish rating platform that highlights independent restaurants and dishes without fast-food chains.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
+  <!-- Tailwind & Typography -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
   <style>
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -96,7 +161,7 @@
 
   <main class="max-w-xl mx-auto p-4 space-y-4 pt-4">
 
-    <!-- Category Pill Strip (Preserves user_lat and user_lon) -->
+    <!-- Category Pill Strip -->
     <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
       <a href="/?{% if user_lat %}user_lat={{ user_lat }}&user_lon={{ user_lon }}&{% endif %}{% if location_query %}location_query={{ location_query }}&{% endif %}{% if food_query %}food_query={{ food_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center space-x-1.5 {% if not selected_category %}bg-slate-900 text-white shadow-sm{% else %}bg-white text-slate-600 hover:bg-slate-100 border border-slate-200{% endif %}">
@@ -819,8 +884,6 @@
     // --- MANUAL RESTAURANT TOGGLE ---
     function toggleManualRestaurant() {
       const nameField = document.getElementById('restaurantName');
-      const addrField = document.getElementById('restaurantAddress');
-      const webField = document.getElementById('restaurantWebsite');
       const searchBox = document.getElementById('postLocSearchInput');
 
       if (searchBox && searchBox.value.trim() && !nameField.value.trim()) {
