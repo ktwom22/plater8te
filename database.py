@@ -3,7 +3,6 @@ import time
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Reads the injected Railway DATABASE_PUBLIC_URL or DATABASE_URL
 DATABASE_URL = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get(
     "DATABASE_URL",
     "postgresql://postgres:postgres@localhost:5432/platerate"
@@ -38,7 +37,7 @@ def init_db():
     );
     """)
 
-    # Safe migration: Add password_hash column if the table already existed without it
+    # Safe migration: password_hash
     c.execute("""
         DO $$
         BEGIN
@@ -60,6 +59,7 @@ def init_db():
         restaurant VARCHAR(255) NOT NULL,
         restaurant_address TEXT,
         restaurant_website TEXT,
+        category VARCHAR(100),
         latitude DOUBLE PRECISION,
         longitude DOUBLE PRECISION,
         photo_url TEXT,
@@ -70,7 +70,20 @@ def init_db():
     );
     """)
 
-    # Interactions Table (Likes & Saves)
+    # Safe migration: category column
+    c.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='plates' AND column_name='category'
+            ) THEN
+                ALTER TABLE plates ADD COLUMN category VARCHAR(100);
+            END IF;
+        END $$;
+    """)
+
+    # Interactions Table
     c.execute("""
     CREATE TABLE IF NOT EXISTS interactions (
         id SERIAL PRIMARY KEY,
@@ -95,7 +108,7 @@ def init_db():
     conn.commit()
     c.close()
     conn.close()
-    print("[Postgres] Database initialized with password support.")
+    print("[Postgres] Database initialized with category and password support.")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     .glass-nav {
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.88);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid rgba(226, 232, 240, 0.8);
@@ -32,6 +32,14 @@
     }
     .coral-glow {
       box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.25);
+    }
+    /* Hide scrollbars on category pill strip */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 </head>
@@ -61,7 +69,7 @@
       </div>
     </div>
 
-    <!-- Navigation Pills -->
+    <!-- Navigation Tabs -->
     <nav class="max-w-xl mx-auto px-5 flex space-x-5 text-xs font-bold pb-2 pt-0.5">
       <a href="/" class="pb-1.5 text-rose-600 border-b-2 border-rose-600 font-extrabold tracking-wide">Live Feed</a>
       {% if user %}
@@ -71,14 +79,30 @@
     </nav>
   </header>
 
-  <main class="max-w-xl mx-auto p-4 space-y-6 pt-5">
+  <main class="max-w-xl mx-auto p-4 space-y-4 pt-4">
+
+    <!-- Category Pill Strip -->
+    <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+      <a href="/?{% if food_query %}food_query={{ food_query }}&{% endif %}{% if location_query %}location_query={{ location_query }}&{% endif %}{% if user_lat %}user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}"
+         class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center space-x-1.5 {% if not selected_category %}bg-slate-900 text-white shadow-sm{% else %}bg-white text-slate-600 hover:bg-slate-100 border border-slate-200{% endif %}">
+        <span>✨ All</span>
+      </a>
+
+      {% for cat in categories %}
+      <a href="/?category={{ cat.name }}{% if food_query %}&food_query={{ food_query }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}"
+         class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center space-x-1.5 {% if selected_category == cat.name %}bg-rose-600 text-white shadow-md border-transparent{% else %}bg-white text-slate-700 hover:bg-slate-100 border border-slate-200{% endif %}">
+        <span>{{ cat.icon }}</span>
+        <span>{{ cat.name }}</span>
+      </a>
+      {% endfor %}
+    </div>
 
     <!-- Discovery Search / Radar Bar -->
     <div class="plate-card p-4 rounded-3xl space-y-3">
       <form id="discoveryForm" action="/" method="get" onsubmit="cleanEmptyCoordinates(this)" class="space-y-2.5">
         <div class="flex space-x-2">
           <div class="relative flex-1">
-            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Craving or dish (e.g. Tacos)..."
+            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Dish or craving..."
                    class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
           <div class="relative flex-1">
@@ -87,6 +111,9 @@
           </div>
         </div>
 
+        {% if selected_category %}
+          <input type="hidden" name="category" value="{{ selected_category }}">
+        {% endif %}
         <input type="hidden" name="user_lat" id="feedLat" value="{{ user_lat if user_lat else '' }}">
         <input type="hidden" name="user_lon" id="feedLon" value="{{ user_lon if user_lon else '' }}">
 
@@ -98,8 +125,8 @@
           </button>
 
           <div class="flex items-center space-x-2">
-            {% if food_query or location_query or user_lat %}
-              <a href="/" class="text-xs text-slate-400 hover:text-slate-700 underline mr-1">Reset</a>
+            {% if food_query or location_query or user_lat or selected_category %}
+              <a href="/" class="text-xs text-slate-400 hover:text-slate-700 underline mr-1">Reset all</a>
             {% endif %}
             <button type="submit" class="bg-slate-900 hover:bg-black text-white text-xs font-black px-4 py-2 rounded-xl transition transform active:scale-95 shadow-sm">
               Filter
@@ -190,8 +217,8 @@
     <div class="space-y-6">
       {% if not plates %}
         <div class="plate-card p-10 rounded-3xl text-center space-y-2 border-dashed">
-          <p class="font-bold text-slate-600">No plates match this search yet.</p>
-          <a href="/" class="text-xs text-rose-600 font-bold hover:underline">Reset view</a>
+          <p class="font-bold text-slate-600">No plates match this category or search filter.</p>
+          <a href="/" class="text-xs text-rose-600 font-bold hover:underline">Reset filters</a>
         </div>
       {% endif %}
 
@@ -208,6 +235,11 @@
 
           <!-- Floating Badges Top Left -->
           <div class="absolute top-4 left-4 flex flex-wrap gap-2">
+            {% if plate.category %}
+              <span class="text-[11px] font-bold bg-white/95 backdrop-blur-md text-slate-900 px-3 py-1 rounded-full shadow-md border border-white/40">
+                {{ plate.category }}
+              </span>
+            {% endif %}
             {% if plate.is_sponsored %}
               <span class="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2.5 py-1 rounded-full shadow-md">
                 Featured
@@ -376,10 +408,21 @@
       <!-- Modal Body -->
       <div class="p-6 overflow-y-auto space-y-4">
         <form id="platePostForm" action="/plates" method="post" enctype="multipart/form-data" class="space-y-4">
-          <div>
-            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Dish Name</label>
-            <input type="text" name="dish_name" placeholder="e.g. Cacio e Pepe, Birria Tacos..." required
-                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Dish Name</label>
+              <input type="text" name="dish_name" placeholder="e.g. Truffle Pappardelle" required
+                     class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Category</label>
+              <select name="category" required class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 outline-none focus:bg-white focus:border-rose-500 font-medium">
+                {% for cat in categories %}
+                  <option value="{{ cat.name }}">{{ cat.icon }} {{ cat.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
           </div>
 
           <!-- Spot Search -->

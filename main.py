@@ -39,6 +39,21 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Standard curated categories with icon emojis
+CATEGORIES = [
+    {"name": "Burgers", "icon": "🍔"},
+    {"name": "Pizza", "icon": "🍕"},
+    {"name": "Pasta & Italian", "icon": "🍝"},
+    {"name": "Tacos & Mexican", "icon": "🌮"},
+    {"name": "Asian & Noodles", "icon": "🍜"},
+    {"name": "Seafood", "icon": "🦞"},
+    {"name": "BBQ & Meat", "icon": "🥩"},
+    {"name": "Brunch & Cafe", "icon": "🥞"},
+    {"name": "Desserts", "icon": "🍰"},
+    {"name": "Drinks & Cocktails", "icon": "🍸"},
+    {"name": "Other", "icon": "🍽️"}
+]
+
 
 def get_current_user(request: Request):
     user_id = request.cookies.get("user_id")
@@ -268,6 +283,7 @@ async def home(
     request: Request,
     food_query: str = Query(None),
     location_query: str = Query(None),
+    category: str = Query(None),
     user_lat: str = Query(None),
     user_lon: str = Query(None),
     radius_miles: float = Query(15.0),
@@ -318,11 +334,22 @@ async def home(
 
     filtered_plates = []
     for plate in all_plates:
-        if food_query:
-            fq = food_query.lower()
-            if fq not in plate["dish_name"].lower() and fq not in plate["restaurant"].lower():
+        # Category Filter
+        if category and category.strip():
+            plate_cat = plate.get("category") or ""
+            if plate_cat.lower() != category.strip().lower():
                 continue
 
+        # Food / Dish / Restaurant Filter
+        if food_query:
+            fq = food_query.lower()
+            dish_match = fq in plate["dish_name"].lower()
+            rest_match = fq in plate["restaurant"].lower()
+            cat_match = fq in (plate.get("category") or "").lower()
+            if not (dish_match or rest_match or cat_match):
+                continue
+
+        # Location Filter
         if location_query:
             lq = location_query.lower()
             addr = (plate["restaurant_address"] or "").lower()
@@ -330,6 +357,7 @@ async def home(
             if lq not in addr and lq not in rest:
                 continue
 
+        # Distance Proximity Filter
         if parsed_lat is not None and parsed_lon is not None:
             dist = haversine_miles(parsed_lat, parsed_lon, plate["latitude"], plate["longitude"])
             if dist > radius_miles:
@@ -349,6 +377,8 @@ async def home(
         context={
             "user": user,
             "plates": filtered_plates,
+            "categories": CATEGORIES,
+            "selected_category": category or "",
             "food_query": food_query or "",
             "location_query": location_query or "",
             "user_lat": parsed_lat if parsed_lat is not None else "",
@@ -383,8 +413,8 @@ async def favorites_page(request: Request, q: str = Query(None)):
 
     if q:
         search_pattern = f"%{q.strip()}%"
-        query_str += " AND (p.dish_name ILIKE %s OR p.restaurant ILIKE %s OR p.restaurant_address ILIKE %s)"
-        params.extend([search_pattern, search_pattern, search_pattern])
+        query_str += " AND (p.dish_name ILIKE %s OR p.restaurant ILIKE %s OR p.restaurant_address ILIKE %s OR p.category ILIKE %s)"
+        params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
 
     query_str += " ORDER BY p.created_at DESC"
     c.execute(query_str, tuple(params))
@@ -450,6 +480,7 @@ async def create_plate(
     request: Request,
     dish_name: str = Form(...),
     restaurant: str = Form(...),
+    category: str = Form("Other"),
     restaurant_address: str = Form(""),
     restaurant_website: str = Form(""),
     latitude: str = Form(None),
@@ -482,12 +513,13 @@ async def create_plate(
     c = conn.cursor()
     c.execute("""
         INSERT INTO plates (
-            user_id, dish_name, restaurant, restaurant_address, 
+            user_id, dish_name, restaurant, category, restaurant_address, 
             restaurant_website, latitude, longitude, photo_url, rating, reorder
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """, (
         user["id"], dish_name.strip(), restaurant.strip(),
+        (category or "Other").strip(),
         restaurant_address.strip(), restaurant_website.strip(),
         lat, lon, photo_url, final_rating, final_reorder
     ))
