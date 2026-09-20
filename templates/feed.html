@@ -30,6 +30,9 @@
     .coral-glow {
       box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.25);
     }
+    .roulette-glow {
+      box-shadow: 0 8px 25px -4px rgba(99, 102, 241, 0.35);
+    }
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -37,11 +40,19 @@
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+    @keyframes spinSlot {
+      0% { transform: translateY(0); opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { transform: translateY(-4px); opacity: 0.3; }
+    }
+    .slot-animate {
+      animation: spinSlot 0.09s infinite alternate;
+    }
   </style>
 </head>
 <body class="bg-[#f8fafc] text-slate-900 min-h-screen selection:bg-rose-500 selection:text-white pb-32">
 
-  <!-- Crisp White Frosted Sticky Nav -->
+  <!-- Sticky Nav -->
   <header class="sticky top-0 z-40 glass-nav">
     <div class="max-w-xl mx-auto px-5 py-3.5 flex justify-between items-center">
       <a href="/" class="flex items-center space-x-2 group">
@@ -132,7 +143,25 @@
       </form>
     </div>
 
-    <!-- Light Minimal Auth Card (Guest View) -->
+    <!-- ================= ROULETTE / RANDOMIZER TRIGGER CARD ================= -->
+    <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 rounded-3xl p-4 text-white flex items-center justify-between roulette-glow">
+      <div class="space-y-0.5">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-base">🎰</span>
+          <h3 class="font-black text-sm tracking-tight">Can't Decide What to Eat?</h3>
+        </div>
+        <p id="rouletteSubtext" class="text-[11px] text-indigo-100 font-medium">
+          Spin to pick from local plates and top restaurants.
+        </p>
+      </div>
+      <button type="button" onclick="startRouletteSpin()"
+              class="bg-white text-indigo-700 hover:bg-indigo-50 font-black px-4 py-2 rounded-2xl text-xs shadow-md transition transform active:scale-95 flex items-center space-x-1.5 shrink-0">
+        <span>🎲</span>
+        <span>Pick For Me</span>
+      </button>
+    </div>
+
+    <!-- Guest Auth Card -->
     {% if not user %}
     <div id="auth" class="plate-card rounded-3xl overflow-hidden scroll-mt-20">
       {% if auth_error %}
@@ -151,7 +180,6 @@
       </div>
 
       <div class="p-6">
-        <!-- Log In -->
         <form id="formLogin" action="/login" method="post" class="space-y-3.5">
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Username or Email</label>
@@ -168,7 +196,6 @@
           </button>
         </form>
 
-        <!-- Sign Up -->
         <form id="formSignup" action="/signup" method="post" class="space-y-3.5 hidden">
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Choose Username</label>
@@ -209,7 +236,7 @@
     </div>
     {% endif %}
 
-    <!-- ================= EXPLORE LOCAL RESTAURANTS (GOOGLE PLACES) ================= -->
+    <!-- Area Curated Spots -->
     {% if discovered_restaurants %}
     <div class="space-y-3 pt-2">
       <div class="flex justify-between items-center px-1">
@@ -249,7 +276,6 @@
               </div>
             </div>
 
-            <!-- Action Buttons: Menu & Rate Plate -->
             <div class="flex flex-col space-y-1.5 shrink-0 text-right">
               {% if spot.website %}
                 <a href="{{ spot.website }}" target="_blank" rel="noopener noreferrer"
@@ -272,7 +298,7 @@
     </div>
     {% endif %}
 
-    <!-- ================= COMMUNITY PLATES FEED ================= -->
+    <!-- Community Plates Feed -->
     <div class="space-y-4 pt-4 border-t border-slate-200/70">
       <div class="flex justify-between items-center px-1">
         <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">
@@ -290,7 +316,6 @@
       {% for plate in plates %}
       <article id="plate-{{ plate.id }}" class="plate-card rounded-3xl overflow-hidden transition duration-300">
 
-        <!-- Plate Photo Header -->
         {% if plate.photo_url %}
         <div class="relative w-full aspect-square bg-slate-100 overflow-hidden group">
           <img src="{{ plate.photo_url }}" alt="{{ plate.dish_name }}"
@@ -298,7 +323,6 @@
 
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none"></div>
 
-          <!-- Floating Badges Top Left -->
           <div class="absolute top-4 left-4 flex flex-wrap gap-2">
             {% if plate.category %}
               <span class="text-[11px] font-bold bg-white/95 backdrop-blur-md text-slate-900 px-3 py-1 rounded-full shadow-md border border-white/40">
@@ -317,7 +341,6 @@
             {% endif %}
           </div>
 
-          <!-- Floating Score Pill Top Right -->
           <div class="absolute top-4 right-4">
             {% if plate.rating %}
               <div class="score-badge text-white font-black px-3.5 py-1.5 rounded-2xl text-base flex items-center space-x-1">
@@ -333,7 +356,6 @@
         </div>
         {% endif %}
 
-        <!-- Card Body -->
         <div class="p-5 space-y-3.5">
           <div class="flex justify-between items-start gap-4">
             <div class="space-y-1">
@@ -347,7 +369,6 @@
               {% endif %}
             </div>
 
-            <!-- Reorder Pill -->
             {% if plate.reorder %}
               <div>
                 {% if plate.reorder == 'Hell yes' %}
@@ -364,7 +385,6 @@
             {% endif %}
           </div>
 
-          <!-- Restaurant / Menu Button -->
           {% if plate.restaurant_website %}
           <div>
             <a href="{{ plate.restaurant_website }}" target="_blank" rel="noopener noreferrer"
@@ -379,10 +399,8 @@
             <span>Posted by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
           </div>
 
-          <!-- Interaction Bar -->
           <div class="flex items-center justify-between border-t border-slate-100 pt-3.5 text-xs">
             <div class="flex items-center space-x-3">
-              <!-- Like -->
               <form action="/plates/{{ plate.id }}/interact" method="post">
                 <input type="hidden" name="action_type" value="like">
                 <button type="submit" class="flex items-center space-x-1.5 bg-slate-50 hover:bg-rose-50 border border-slate-200/80 px-3 py-1.5 rounded-xl font-bold transition transform active:scale-95 text-slate-600 hover:text-rose-600">
@@ -391,7 +409,6 @@
                 </button>
               </form>
 
-              <!-- Bookmark -->
               <form action="/plates/{{ plate.id }}/interact" method="post">
                 <input type="hidden" name="action_type" value="save">
                 <button type="submit" class="flex items-center space-x-1.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 px-3 py-1.5 rounded-xl font-bold transition transform active:scale-95 text-slate-600 hover:text-indigo-600">
@@ -401,7 +418,6 @@
               </form>
             </div>
 
-            <!-- Comment Drawer Toggle -->
             <button type="button" onclick="toggleComments('{{ plate.id }}')"
                     class="flex items-center space-x-1.5 text-slate-500 hover:text-slate-900 font-bold transition px-2 py-1">
               <span>💬 {{ plate.comment_count }} comments</span>
@@ -409,7 +425,6 @@
             </button>
           </div>
 
-          <!-- Comments Drawer -->
           <div id="comments-drawer-{{ plate.id }}" class="hidden pt-3 border-t border-slate-100 space-y-3">
             <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
               {% if not plate.comments %}
@@ -456,12 +471,48 @@
   </button>
   {% endif %}
 
-  <!-- ================= CLEAN WHITE POPUP MODAL ================= -->
+  <!-- ================= ROULETTE / RANDOMIZER MODAL ================= -->
+  <div id="rouletteModalOverlay" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden text-center p-6 space-y-5 transform transition duration-300">
+
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span id="rouletteBadge" class="text-[11px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">
+          🎲 Plate Roulette
+        </span>
+        <button type="button" onclick="closeRouletteModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none p-1">&times;</button>
+      </div>
+
+      <!-- Shuffling / Result Display Box -->
+      <div id="rouletteDisplayCard" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 min-h-[190px] flex flex-col justify-center items-center">
+        <div id="rouletteSpinnerEmoji" class="text-4xl animate-bounce">🎰</div>
+        <h4 id="rouletteTitle" class="text-lg font-black text-slate-900 leading-snug">
+          Spinning the local options...
+        </h4>
+        <p id="rouletteSubtitle" class="text-xs text-slate-500 font-medium">
+          Selecting from the best plates and spots in your view.
+        </p>
+      </div>
+
+      <!-- Winning Action Links (Visible once spin completes) -->
+      <div id="rouletteActions" class="hidden flex space-x-2.5">
+        <a id="rouletteLink" href="#" target="_blank" rel="noopener noreferrer"
+           class="flex-1 bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-xl text-xs transition">
+          View Details & Menu ↗
+        </a>
+        <button type="button" onclick="startRouletteSpin()"
+                class="flex-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold py-3 rounded-xl text-xs border border-indigo-200 transition">
+          Spin Again 🎲
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Post Modal -->
   {% if user %}
   <div id="postModalOverlay" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
 
-      <!-- Modal Header -->
       <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
           <h2 class="font-black text-lg text-slate-900">Log a New Plate</h2>
@@ -470,7 +521,6 @@
         <button type="button" onclick="closePostModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold p-1">&times;</button>
       </div>
 
-      <!-- Modal Body -->
       <div class="p-6 overflow-y-auto space-y-4">
         <form id="platePostForm" action="/plates" method="post" enctype="multipart/form-data" class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -490,7 +540,6 @@
             </div>
           </div>
 
-          <!-- Spot Search -->
           <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
             <div class="flex items-center justify-between">
               <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Restaurant Search</label>
@@ -530,7 +579,6 @@
             <input type="hidden" name="longitude" id="lonField">
           </div>
 
-          <!-- Photo Canvas Upload -->
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Plate Photo</label>
             <input type="file" id="photoFileInput" name="photo" accept="image/*"
@@ -566,7 +614,6 @@
             </div>
           </div>
 
-          <!-- 45-Min Reminder Option -->
           <div class="bg-rose-50 p-3.5 rounded-2xl border border-rose-100">
             <label class="flex items-center space-x-2.5 text-xs font-medium text-rose-900 cursor-pointer">
               <input type="checkbox" name="skip_rating" value="true" id="skipToggle" onchange="toggleRatingFields(this)"
@@ -575,7 +622,6 @@
             </label>
           </div>
 
-          <!-- Score Fields -->
           <div id="ratingFields" class="space-y-4">
             <div>
               <div class="flex justify-between text-xs font-bold text-slate-500 uppercase mb-1">
@@ -619,7 +665,133 @@
   </div>
   {% endif %}
 
+  <!-- ================= INLINE DATA PAYLOADS FOR ROULETTE ================= -->
   <script>
+    // Ingest loaded plates and discovered restaurants directly from Jinja context
+    const currentPlates = [
+      {% for p in plates %}
+      {
+        type: 'plate',
+        title: "{{ p.dish_name | escape }}",
+        restaurant: "{{ p.restaurant | escape }}",
+        address: "{{ (p.restaurant_address or '') | escape }}",
+        rating: "{{ p.rating }}",
+        reorder: "{{ p.reorder or '' }}",
+        category: "{{ p.category or '' }}",
+        url: "{{ p.restaurant_website or ('/#plate-' ~ p.id) }}"
+      }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ];
+
+    const currentRestaurants = [
+      {% for r in discovered_restaurants %}
+      {
+        type: 'restaurant',
+        title: "{{ r.name | escape }}",
+        restaurant: "{{ r.name | escape }}",
+        address: "{{ (r.address or '') | escape }}",
+        rating: "{{ r.rating or '' }}",
+        category: "Local Spot",
+        url: "{{ r.website or '#' }}"
+      }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ];
+
+    // --- ROULETTE RANDOMIZER ENGINE ---
+    let rouletteTimer = null;
+
+    function startRouletteSpin() {
+      // Rule Evaluation:
+      // If 10 or more community plates exist in current view, draw exclusively from plates.
+      // If fewer than 10 plates exist, pool community plates with local non-chain restaurant cards.
+      let candidates = [];
+      let modeLabel = "";
+
+      if (currentPlates.length >= 10) {
+        candidates = currentPlates;
+        modeLabel = `🎲 Randomizing ${candidates.length} Local Plates`;
+      } else {
+        candidates = [...currentPlates, ...currentRestaurants];
+        modeLabel = `🎲 Randomizing ${candidates.length} Plates & Spots`;
+      }
+
+      if (candidates.length === 0) {
+        alert("No restaurants or plates found in this area yet. Use 'Near Me' or search a city first!");
+        return;
+      }
+
+      const modal = document.getElementById('rouletteModalOverlay');
+      const badge = document.getElementById('rouletteBadge');
+      const title = document.getElementById('rouletteTitle');
+      const subtitle = document.getElementById('rouletteSubtitle');
+      const emoji = document.getElementById('rouletteSpinnerEmoji');
+      const actions = document.getElementById('rouletteActions');
+
+      badge.innerText = modeLabel;
+      actions.classList.add('hidden');
+      modal.classList.remove('hidden');
+      emoji.classList.add('slot-animate');
+
+      let counter = 0;
+      const totalSteps = 22;
+      clearInterval(rouletteTimer);
+
+      rouletteTimer = setInterval(() => {
+        const tempPick = candidates[Math.floor(Math.random() * candidates.length)];
+        title.innerText = tempPick.title;
+        subtitle.innerText = tempPick.type === 'plate'
+          ? `at ${tempPick.restaurant}`
+          : (tempPick.address || 'Local Restaurant Spot');
+        counter++;
+
+        if (counter >= totalSteps) {
+          clearInterval(rouletteTimer);
+          emoji.classList.remove('slot-animate');
+          emoji.innerText = "🎉";
+
+          // Final selected winner
+          const winner = candidates[Math.floor(Math.random() * candidates.length)];
+
+          if (winner.type === 'plate') {
+            title.innerText = winner.title;
+            subtitle.innerHTML = `<strong class="text-rose-600 font-bold">@ ${winner.restaurant}</strong><br><span class="text-slate-500">${winner.category ? winner.category + ' • ' : ''}Rated ★ ${winner.rating}/10</span>`;
+          } else {
+            title.innerText = winner.title;
+            subtitle.innerHTML = `<span class="text-indigo-600 font-bold">Local Dining Spot</span><br><span class="text-slate-500">${winner.address || ''}</span>`;
+          }
+
+          const linkBtn = document.getElementById('rouletteLink');
+          if (winner.url && winner.url !== '#') {
+            linkBtn.href = winner.url;
+            linkBtn.classList.remove('hidden');
+            linkBtn.innerText = winner.type === 'plate' ? "View Spot & Menu ↗" : "View Website & Menu ↗";
+          } else {
+            linkBtn.classList.add('hidden');
+          }
+
+          actions.classList.remove('hidden');
+        }
+      }, 80);
+    }
+
+    function closeRouletteModal() {
+      clearInterval(rouletteTimer);
+      document.getElementById('rouletteModalOverlay').classList.add('hidden');
+    }
+
+    // Update subtitle banner based on count
+    document.addEventListener('DOMContentLoaded', () => {
+      const banner = document.getElementById('rouletteSubtext');
+      if (banner) {
+        if (currentPlates.length >= 10) {
+          banner.innerText = `Spin among ${currentPlates.length} community plates rated in this area.`;
+        } else {
+          banner.innerText = `Spin across ${currentPlates.length} plates + ${currentRestaurants.length} local curated spots.`;
+        }
+      }
+    });
+
+    // --- STANDARD MODAL, PHOTO CANVAS & PLACES JS ---
     let fetchedRestaurants = [];
     let originalImg = new Image();
     let isImageLoaded = false;
@@ -689,12 +861,12 @@
     }
 
     window.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && modalOverlay && !modalOverlay.classList.contains('hidden')) {
+      if (e.key === 'Escape') {
         closePostModal();
+        closeRouletteModal();
       }
     });
 
-    // --- QUICK HOOK: PREFILL RESTAURANT MODAL FROM DISCOVERY CARD ---
     function prefillPlateModal(name, address, website, lat, lon) {
       openPostModal();
       document.getElementById('restaurantName').value = name || "";
@@ -741,7 +913,6 @@
       if (fields) fields.style.display = checkbox.checked ? 'none' : 'block';
     }
 
-    // Photo Canvas Processing
     if (fileInput) {
       fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -809,7 +980,6 @@
       });
     }
 
-    // Google Places Search
     function locateRestaurantGPS() {
       const btn = document.getElementById('postLocBtn');
       if (!navigator.geolocation) return;
