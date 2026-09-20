@@ -39,7 +39,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# Curated categories with icon emojis
+# Curated food categories
 CATEGORIES = [
     {"name": "Burgers", "icon": "🍔"},
     {"name": "Pizza", "icon": "🍕"},
@@ -54,9 +54,9 @@ CATEGORIES = [
     {"name": "Other", "icon": "🍽️"}
 ]
 
-# Comprehensive blocklist: fast food, gas stations, smoke/vape shops, retreats, and non-dining spots
+# Chains, gas stations, vape shops, and non-dining venues to discard
 NON_RESTAURANT_BLOCKLIST = {
-    # Fast Food & National Chains
+    # Fast Food & National Drive-Thrus
     "mcdonald's", "mcdonalds", "burger king", "wendy's", "wendys", "taco bell",
     "subway", "kfc", "kentucky fried chicken", "pizza hut", "domino's", "dominos",
     "papa john's", "papa johns", "little caesars", "popeyes", "chick-fil-a", "chick fil a",
@@ -68,7 +68,7 @@ NON_RESTAURANT_BLOCKLIST = {
     "whataburger", "checkers", "rally's", "del taco", "church's chicken",
     "panera bread", "tim hortons", "baskin-robbins", "firehouse subs",
 
-    # Gas Stations, Convenience & Fuel Stops
+    # Gas Stations & Convenience Stores
     "nouria", "cumberland farms", "cumby's", "circle k", "7-eleven", "7 eleven",
     "irving", "mobil", "exxon", "shell", "citgo", "bp", "sunoco", "speedway",
     "wawa", "sheetz", "casey's", "gulf", "gas station", "convenience", "mini mart", "mart",
@@ -80,23 +80,22 @@ NON_RESTAURANT_BLOCKLIST = {
     "spiritual", "retreat", "renewal", "church", "center for", "ecological"
 }
 
-# Explicit Google Places type exclusions
-EXCLUDED_GOOGLE_TYPES = {
+EXCLUDED_TYPES = {
     "gas_station", "convenience_store", "liquor_store", "tobacco_shop",
     "place_of_worship", "grocery_store", "supermarket", "fast_food_restaurant"
 }
 
 
 def is_invalid_spot(name: str, types: list = None) -> bool:
-    """Returns True if the place matches fast-food chains, gas stations, vape shops, or non-eateries."""
+    """Returns True if matching fast food chains, gas stations, or retail shops."""
     name_lower = name.lower()
-    for bad_term in NON_RESTAURANT_BLOCKLIST:
-        if bad_term in name_lower:
+    for bad in NON_RESTAURANT_BLOCKLIST:
+        if bad in name_lower:
             return True
 
     if types:
         for t in types:
-            if t.lower() in EXCLUDED_GOOGLE_TYPES or "fast_food" in t.lower():
+            if t.lower() in EXCLUDED_TYPES or "fast_food" in t.lower():
                 return True
     return False
 
@@ -114,7 +113,7 @@ def get_current_user(request: Request):
         conn.close()
         return user
     except Exception as e:
-        print(f"[!] Error fetching current user: {e}")
+        print(f"[!] Error fetching user: {e}")
         return None
 
 
@@ -131,11 +130,12 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
-# --- GOOGLE PLACES API HELPERS ---
+# --- GOOGLE PLACES API (NEW) HANDLERS ---
 
 async def fetch_area_restaurants_gps(lat: float, lon: float):
-    """Fetches local independent dining venues via GPS coordinates."""
+    """Fetches local independent eateries using official Google Places Table A types."""
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
+        print("[!] Warning: GOOGLE_PLACES_API_KEY is not set.")
         return []
 
     url = "https://places.googleapis.com/v1/places:searchNearby"
@@ -144,26 +144,24 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
         "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
         "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
     }
+    # Only standard, supported Table A place types to prevent 400 Bad Request
     payload = {
-        "includedTypes": [
-            "restaurant", "bar_and_grill", "hamburger_restaurant",
-            "pizza_restaurant", "mexican_restaurant", "italian_restaurant",
-            "seafood_restaurant", "bar", "cafe", "bakery"
-        ],
-        "excludedTypes": list(EXCLUDED_GOOGLE_TYPES),
+        "includedTypes": ["restaurant", "cafe", "bakery", "bar"],
+        "excludedTypes": ["fast_food_restaurant"],
         "maxResultCount": 20,
         "locationRestriction": {
             "circle": {
                 "center": {"latitude": lat, "longitude": lon},
-                "radius": 8000.0  # ~5.0 miles
+                "radius": 8000.0  # 5 miles
             }
         }
     }
 
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=9.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
             if resp.status_code != 200:
+                print(f"[!] Google Places Nearby Error {resp.status_code}: {resp.text}")
                 return []
             data = resp.json()
             spots = []
@@ -188,12 +186,12 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
             spots.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 9999)
             return spots
     except Exception as e:
-        print(f"[!] Places Nearby error: {e}")
+        print(f"[!] Exception during Google Places Nearby: {e}")
         return []
 
 
 async def fetch_area_restaurants_query(query_text: str):
-    """Fetches local restaurants in a searched city or zip code."""
+    """Text search with fallback parsing."""
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
         return []
 
@@ -204,15 +202,15 @@ async def fetch_area_restaurants_query(query_text: str):
         "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
     }
     payload = {
-        "textQuery": f"restaurants dining burgers pizza in {query_text}",
-        "includedType": "restaurant",
+        "textQuery": f"best local restaurants and food in {query_text}",
         "maxResultCount": 20
     }
 
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=9.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
             if resp.status_code != 200:
+                print(f"[!] Google Places Text Error {resp.status_code}: {resp.text}")
                 return []
             data = resp.json()
             spots = []
@@ -233,11 +231,11 @@ async def fetch_area_restaurants_query(query_text: str):
                 })
             return spots
     except Exception as e:
-        print(f"[!] Places TextSearch error: {e}")
+        print(f"[!] Exception during Google Places Text Search: {e}")
         return []
 
 
-# --- GOOGLE PLACES API AJAX ENDPOINTS ---
+# --- AJAX RESTAURANT ENDPOINTS ---
 
 @app.get("/api/restaurants/nearby")
 async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...)):
@@ -446,7 +444,7 @@ async def home(
     if parsed_lat is not None and parsed_lon is not None:
         filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
-    # Fetch Google Places for Discovery
+    # Google Places discovery execution
     discovered_restaurants = []
     area_label = ""
 
@@ -456,9 +454,10 @@ async def home(
     elif location_query and location_query.strip():
         area_label = f"Spots in {location_query.strip().title()}"
         discovered_restaurants = await fetch_area_restaurants_query(location_query.strip())
-    elif len(filtered_plates) == 0:
-        area_label = "Top Independent Spots"
-        discovered_restaurants = await fetch_area_restaurants_query("local dining")
+    else:
+        # Default explore fallback when no GPS provided yet
+        area_label = "Local Independent Eateries"
+        discovered_restaurants = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
 
     return templates.TemplateResponse(
         request=request,

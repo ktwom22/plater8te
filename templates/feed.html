@@ -23,6 +23,9 @@
       border: 1px solid #e2e8f0;
       box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
     }
+    .plate-card:hover {
+      box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.08), 0 10px 15px -3px rgba(15, 23, 42, 0.03);
+    }
     .score-badge {
       background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
       box-shadow: 0 4px 14px 0 rgba(217, 119, 6, 0.35);
@@ -109,11 +112,11 @@
       <form id="discoveryForm" action="/" method="get" class="space-y-2.5">
         <div class="flex space-x-2">
           <div class="relative flex-1">
-            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Dish or craving (e.g. Tacos)..."
+            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Dish or craving (e.g. Burgers)..."
                    class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
           <div class="relative flex-1">
-            <input type="text" name="location_query" id="locInput" value="{{ location_query }}" placeholder="City, neighborhood, zip..."
+            <input type="text" name="location_query" id="locInput" value="{{ location_query }}" placeholder="City, neighborhood, or zip..."
                    class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
         </div>
@@ -128,7 +131,7 @@
           <button type="button" onclick="triggerDeviceLocation()" id="gpsBtn"
                   class="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200/80 px-3 py-1.5 rounded-xl hover:bg-rose-100 transition flex items-center space-x-1.5">
             <span>📍</span>
-            <span id="gpsBtnText">{% if user_lat %}GPS Locked (Refresh){% else %}Use My GPS{% endif %}</span>
+            <span id="gpsBtnText">{% if user_lat %}GPS Active (Tap to Update){% else %}Use My GPS{% endif %}</span>
           </button>
 
           <div class="flex items-center space-x-2">
@@ -146,7 +149,7 @@
     <!-- Active Location Banner -->
     {% if user_lat and user_lon %}
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-2xl text-xs flex items-center justify-between font-semibold">
-      <span>📍 Using your precise location for spots & distance</span>
+      <span>📍 Centered on your device GPS (within 5 miles)</span>
       <button type="button" onclick="clearLocationFilter()" class="text-[11px] text-emerald-700 underline font-bold">Clear</button>
     </div>
     {% endif %}
@@ -159,7 +162,7 @@
           <h3 class="font-black text-sm tracking-tight">Can't Decide What to Eat?</h3>
         </div>
         <p id="rouletteSubtext" class="text-[11px] text-indigo-100 font-medium">
-          Spin to pick from local plates and top restaurants in your area.
+          Spin to pick from local plates and independent eateries in your area.
         </p>
       </div>
       <button type="button" onclick="startRouletteSpin()"
@@ -229,7 +232,7 @@
     </div>
     {% endif %}
 
-    <!-- Top Action Card (Logged In) -->
+    <!-- Action Card (Logged In) -->
     {% if user %}
     <div class="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-r from-rose-500 via-rose-600 to-orange-500 text-white flex items-center justify-between coral-glow">
       <div class="space-y-0.5">
@@ -244,7 +247,7 @@
     </div>
     {% endif %}
 
-    <!-- Area Curated Spots -->
+    <!-- Discovered Independent Eateries -->
     {% if discovered_restaurants %}
     <div class="space-y-3 pt-2">
       <div class="flex justify-between items-center px-1">
@@ -252,7 +255,7 @@
           <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
             <span>✨ {{ area_label }}</span>
           </h2>
-          <p class="text-[11px] text-slate-500 font-medium">Independent spots in your immediate area (no drive-thru chains).</p>
+          <p class="text-[11px] text-slate-500 font-medium">Curated local spots (no drive-thru chains). View menus or be the first to rate a plate.</p>
         </div>
       </div>
 
@@ -316,8 +319,8 @@
 
       {% if not plates %}
         <div class="plate-card p-8 rounded-3xl text-center space-y-2 border-dashed">
-          <p class="font-bold text-slate-600 text-sm">No community dishes posted in this area yet!</p>
-          <p class="text-xs text-slate-400">Spin the roulette or pick any spot above to log the very first dish.</p>
+          <p class="font-bold text-slate-600 text-sm">No community dishes logged here yet!</p>
+          <p class="text-xs text-slate-400">Spin the roulette or tap "+ Rate a Dish" on any spot above to share the first review.</p>
         </div>
       {% endif %}
 
@@ -671,7 +674,7 @@
   </div>
   {% endif %}
 
-  <!-- ================= CLIENT SCRIPTS ================= -->
+  <!-- ================= CLIENT DATA & SCRIPTS ================= -->
   <script>
     const currentPlates = [
       {% for p in plates %}
@@ -702,15 +705,13 @@
       {% endfor %}
     ];
 
-    // --- AUTO-DETECT GEOLOCATION ON FIRST LOAD ---
+    // --- AUTO-DETECT / PERSIST GEOLOCATION ---
     document.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hasLat = urlParams.get('user_lat');
       const hasLocQuery = urlParams.get('location_query');
 
-      // If user has not searched an address AND we don't have lat/lon in URL yet:
       if (!hasLat && !hasLocQuery) {
-        // Check if cached in sessionStorage to prevent prompt loops
         const cachedLat = sessionStorage.getItem('pr_lat');
         const cachedLon = sessionStorage.getItem('pr_lon');
 
@@ -724,9 +725,9 @@
               applyLocationAndReload(pos.coords.latitude, pos.coords.longitude);
             },
             (err) => {
-              console.log("[Geo] Location prompt dismissed or unavailable:", err.message);
+              console.log("[Geo] Location prompt dismissed or unaccepted:", err.message);
             },
-            { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
           );
         }
       }
@@ -754,7 +755,7 @@
           applyLocationAndReload(pos.coords.latitude, pos.coords.longitude);
         },
         (err) => {
-          alert("Could not access device location. Please make sure location permissions are allowed in your browser settings.");
+          alert("Could not access device location. Please make sure location permissions are allowed.");
           btnText.innerText = "Use My GPS";
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -783,7 +784,11 @@
       }
 
       if (candidates.length === 0) {
-        alert("No restaurants or plates found in this area yet. Click 'Use My GPS' or search your city!");
+        // Automatically ask to locate if user clicked without any results
+        const confirmLoc = confirm("No restaurants loaded yet. Locate your area now?");
+        if (confirmLoc) {
+          triggerDeviceLocation();
+        }
         return;
       }
 
