@@ -23,9 +23,6 @@
       border: 1px solid #e2e8f0;
       box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
     }
-    .plate-card:hover {
-      box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.08), 0 10px 15px -3px rgba(15, 23, 42, 0.03);
-    }
     .score-badge {
       background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
       box-shadow: 0 4px 14px 0 rgba(217, 119, 6, 0.35);
@@ -33,7 +30,6 @@
     .coral-glow {
       box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.25);
     }
-    /* Hide scrollbars on category pill strip */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -129,7 +125,7 @@
               <a href="/" class="text-xs text-slate-400 hover:text-slate-700 underline mr-1">Reset all</a>
             {% endif %}
             <button type="submit" class="bg-slate-900 hover:bg-black text-white text-xs font-black px-4 py-2 rounded-xl transition transform active:scale-95 shadow-sm">
-              Filter
+              Search Food & Spots
             </button>
           </div>
         </div>
@@ -213,12 +209,81 @@
     </div>
     {% endif %}
 
-    <!-- Clean Plate Feed Cards -->
-    <div class="space-y-6">
+    <!-- ================= EXPLORE LOCAL RESTAURANTS (GOOGLE PLACES) ================= -->
+    {% if discovered_restaurants %}
+    <div class="space-y-3 pt-2">
+      <div class="flex justify-between items-center px-1">
+        <div>
+          <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
+            <span>✨ {{ area_label }}</span>
+          </h2>
+          <p class="text-[11px] text-slate-500 font-medium">Curated local spots (no fast food chains). View menus or be the first to rate a dish.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3">
+        {% for spot in discovered_restaurants %}
+        <div class="plate-card p-4 rounded-2xl space-y-3 transition hover:border-slate-300">
+          <div class="flex justify-between items-start gap-3">
+            <div class="space-y-1">
+              <h3 class="text-base font-extrabold text-slate-900 leading-snug">{{ spot.name }}</h3>
+              {% if spot.address %}
+                <p class="text-xs text-slate-500 leading-relaxed">{{ spot.address }}</p>
+              {% endif %}
+
+              <div class="flex items-center space-x-2 pt-1">
+                {% if spot.rating %}
+                  <span class="inline-flex items-center space-x-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-md">
+                    <span>★ {{ spot.rating }}</span>
+                    {% if spot.user_ratings_total %}
+                      <span class="text-slate-400 font-medium">({{ spot.user_ratings_total }})</span>
+                    {% endif %}
+                  </span>
+                {% endif %}
+
+                {% if spot.distance_miles is not none %}
+                  <span class="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                    {{ spot.distance_miles }} mi away
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Action Buttons: Menu & Rate Plate -->
+            <div class="flex flex-col space-y-1.5 shrink-0 text-right">
+              {% if spot.website %}
+                <a href="{{ spot.website }}" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center justify-center space-x-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition">
+                  <span>Menu / Website</span>
+                  <span class="text-slate-400">↗</span>
+                </a>
+              {% endif %}
+
+              <button type="button"
+                      onclick="prefillPlateModal('{{ spot.name | escape }}', '{{ spot.address | escape }}', '{{ spot.website | escape }}', '{{ spot.lat }}', '{{ spot.lon }}')"
+                      class="inline-flex items-center justify-center text-xs font-extrabold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition">
+                <span>+ Rate a Dish</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ================= COMMUNITY PLATES FEED ================= -->
+    <div class="space-y-4 pt-4 border-t border-slate-200/70">
+      <div class="flex justify-between items-center px-1">
+        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">
+          Community Plate Reviews ({{ plates | length }})
+        </h2>
+      </div>
+
       {% if not plates %}
-        <div class="plate-card p-10 rounded-3xl text-center space-y-2 border-dashed">
-          <p class="font-bold text-slate-600">No plates match this category or search filter.</p>
-          <a href="/" class="text-xs text-rose-600 font-bold hover:underline">Reset filters</a>
+        <div class="plate-card p-8 rounded-3xl text-center space-y-2 border-dashed">
+          <p class="font-bold text-slate-600 text-sm">No dishes posted in this area yet!</p>
+          <p class="text-xs text-slate-400">Pick any spot from the list above or hit the button to log the very first plate.</p>
         </div>
       {% endif %}
 
@@ -628,6 +693,16 @@
         closePostModal();
       }
     });
+
+    // --- QUICK HOOK: PREFILL RESTAURANT MODAL FROM DISCOVERY CARD ---
+    function prefillPlateModal(name, address, website, lat, lon) {
+      openPostModal();
+      document.getElementById('restaurantName').value = name || "";
+      document.getElementById('restaurantAddress').value = (address && address !== 'None') ? address : "";
+      document.getElementById('restaurantWebsite').value = (website && website !== 'None') ? website : "";
+      if (lat && lat !== 'None') document.getElementById('latField').value = lat;
+      if (lon && lon !== 'None') document.getElementById('lonField').value = lon;
+    }
 
     function cleanEmptyCoordinates(form) {
       const latField = document.getElementById('feedLat');

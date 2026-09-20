@@ -39,7 +39,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# Standard curated categories with icon emojis
+# Curated categories with icon emojis
 CATEGORIES = [
     {"name": "Burgers", "icon": "🍔"},
     {"name": "Pizza", "icon": "🍕"},
@@ -53,6 +53,33 @@ CATEGORIES = [
     {"name": "Drinks & Cocktails", "icon": "🍸"},
     {"name": "Other", "icon": "🍽️"}
 ]
+
+# Comprehensive blocklist to filter out national fast food drive-thrus
+FAST_FOOD_BLOCKLIST = {
+    "mcdonald's", "mcdonalds", "burger king", "wendy's", "wendys", "taco bell",
+    "subway", "kfc", "kentucky fried chicken", "pizza hut", "domino's", "dominos",
+    "papa john's", "papa johns", "little caesars", "popeyes", "chick-fil-a", "chick fil a",
+    "dunkin", "dunkin'", "dunkin' donuts", "starbucks", "sonic drive-in", "sonic",
+    "jack in the box", "arby's", "arbys", "panda express", "dairy queen", "dq",
+    "hardee's", "hardees", "carl's jr.", "carls jr", "five guys", "jimmy john's",
+    "jimmy johns", "jersey mike's", "jersey mikes", "chipotle", "chipotle mexican grill",
+    "wingstop", "raising cane's", "raising canes", "culver's", "culvers", "white castle",
+    "whataburger", "checkers", "rally's", "del taco", "church's chicken", "church's texas chicken",
+    "panera bread", "tim hortons", "baskin-robbins", "firehouse subs"
+}
+
+
+def is_fast_food(name: str, types: list = None) -> bool:
+    """Returns True if the place matches fast-food types or corporate chain names."""
+    name_lower = name.lower()
+    for chain in FAST_FOOD_BLOCKLIST:
+        if chain in name_lower:
+            return True
+    if types:
+        for t in types:
+            if "fast_food" in t.lower():
+                return True
+    return False
 
 
 def get_current_user(request: Request):
@@ -83,6 +110,121 @@ def haversine_miles(lat1, lon1, lat2, lon2):
          math.sin(dlon / 2) ** 2)
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return r * c
+
+
+# --- GOOGLE PLACES API INTERNAL SEARCH HELPERS ---
+
+async def fetch_area_restaurants_gps(lat: float, lon: float):
+    """Fetches local independent restaurants via GPS from Google Places."""
+    if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
+        return []
+
+    url = "https://places.googleapis.com/v1/places:searchNearby"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
+    }
+    payload = {
+        "includedTypes": ["restaurant", "cafe", "bakery", "bar"],
+        "excludedTypes": ["fast_food_restaurant"],
+        "maxResultCount": 20,
+        "locationRestriction": {
+            "circle": {
+                "center": {"latitude": lat, "longitude": lon},
+                "radius": 5000.0  # ~3.1 miles radius
+            }
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            spots = []
+            for place in data.get("places", []):
+                name = place.get("displayName", {}).get("text", "")
+                types = place.get("types", [])
+                if not name or is_fast_food(name, types):
+                    continue
+                p_lat = place.get("location", {}).get("latitude")
+                p_lon = place.get("location", {}).get("longitude")
+                dist = haversine_miles(lat, lon, p_lat, p_lon) if p_lat and p_lon else None
+                spots.append({
+                    "name": name,
+                    "address": place.get("formattedAddress", ""),
+                    "website": place.get("websiteUri", ""),
+                    "rating": place.get("rating"),
+                    "user_ratings_total": place.get("userRatingCount"),
+                    "lat": p_lat,
+                    "lon": p_lon,
+                    "distance_miles": round(dist, 1) if dist is not None else None
+                })
+            spots.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 9999)
+            return spots
+    except Exception as e:
+        print(f"[!] Places Nearby error: {e}")
+        return []
+
+
+async def fetch_area_restaurants_query(query_text: str):
+    """Fetches local restaurants in a searched city or zip code."""
+    if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
+        return []
+
+    url = "https://places.googleapis.com/v1/places:searchText"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
+    }
+    payload = {
+        "textQuery": f"best local restaurants in {query_text}",
+        "maxResultCount": 20
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            spots = []
+            for place in data.get("places", []):
+                name = place.get("displayName", {}).get("text", "")
+                types = place.get("types", [])
+                if not name or is_fast_food(name, types):
+                    continue
+                spots.append({
+                    "name": name,
+                    "address": place.get("formattedAddress", ""),
+                    "website": place.get("websiteUri", ""),
+                    "rating": place.get("rating"),
+                    "user_ratings_total": place.get("userRatingCount"),
+                    "lat": place.get("location", {}).get("latitude"),
+                    "lon": place.get("location", {}).get("longitude"),
+                    "distance_miles": None
+                })
+            return spots
+    except Exception as e:
+        print(f"[!] Places TextSearch error: {e}")
+        return []
+
+
+# --- GOOGLE PLACES API AJAX ENDPOINTS ---
+
+@app.get("/api/restaurants/nearby")
+async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...)):
+    results = await fetch_area_restaurants_gps(lat, lon)
+    return JSONResponse(results)
+
+
+@app.get("/api/restaurants/search")
+async def search_restaurants(query: str = Query(...)):
+    results = await fetch_area_restaurants_query(query)
+    return JSONResponse(results)
 
 
 # --- AUTHENTICATION ROUTES ---
@@ -189,94 +331,7 @@ async def logout():
     return response
 
 
-# --- GOOGLE PLACES API ---
-
-@app.get("/api/restaurants/nearby")
-async def get_nearby_restaurants(lat: float = Query(...), lon: float = Query(...)):
-    if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
-        return JSONResponse({"error": "Google Places API Key is not set"}, status_code=500)
-
-    url = "https://places.googleapis.com/v1/places:searchNearby"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location"
-    }
-    payload = {
-        "includedTypes": ["restaurant", "cafe", "bakery", "fast_food_restaurant", "bar"],
-        "maxResultCount": 20,
-        "locationRestriction": {
-            "circle": {
-                "center": {"latitude": lat, "longitude": lon},
-                "radius": 3500.0
-            }
-        }
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            data = resp.json()
-
-            if resp.status_code != 200:
-                return JSONResponse({"error": f"Google error: {data}"}, status_code=500)
-
-            results = []
-            for place in data.get("places", []):
-                name = place.get("displayName", {}).get("text", "")
-                if not name:
-                    continue
-                results.append({
-                    "name": name,
-                    "address": place.get("formattedAddress", ""),
-                    "website": place.get("websiteUri", ""),
-                    "lat": place.get("location", {}).get("latitude"),
-                    "lon": place.get("location", {}).get("longitude")
-                })
-            return JSONResponse(results)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
-@app.get("/api/restaurants/search")
-async def search_restaurants(query: str = Query(...)):
-    if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
-        return JSONResponse({"error": "Google Places API Key is not set"}, status_code=500)
-
-    url = "https://places.googleapis.com/v1/places:searchText"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location"
-    }
-    payload = {"textQuery": f"restaurants in {query}", "maxResultCount": 20}
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            data = resp.json()
-
-            if resp.status_code != 200:
-                return JSONResponse({"error": f"Google error: {data}"}, status_code=500)
-
-            results = []
-            for place in data.get("places", []):
-                name = place.get("displayName", {}).get("text", "")
-                if not name:
-                    continue
-                results.append({
-                    "name": name,
-                    "address": place.get("formattedAddress", ""),
-                    "website": place.get("websiteUri", ""),
-                    "lat": place.get("location", {}).get("latitude"),
-                    "lon": place.get("location", {}).get("longitude")
-                })
-            return JSONResponse(results)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
-# --- FEED ROUTE ---
+# --- MAIN FEED ROUTE (WITH EXPLORE AREA RESTAURANTS) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -334,13 +389,11 @@ async def home(
 
     filtered_plates = []
     for plate in all_plates:
-        # Category Filter
         if category and category.strip():
             plate_cat = plate.get("category") or ""
             if plate_cat.lower() != category.strip().lower():
                 continue
 
-        # Food / Dish / Restaurant Filter
         if food_query:
             fq = food_query.lower()
             dish_match = fq in plate["dish_name"].lower()
@@ -349,7 +402,6 @@ async def home(
             if not (dish_match or rest_match or cat_match):
                 continue
 
-        # Location Filter
         if location_query:
             lq = location_query.lower()
             addr = (plate["restaurant_address"] or "").lower()
@@ -357,7 +409,6 @@ async def home(
             if lq not in addr and lq not in rest:
                 continue
 
-        # Distance Proximity Filter
         if parsed_lat is not None and parsed_lon is not None:
             dist = haversine_miles(parsed_lat, parsed_lon, plate["latitude"], plate["longitude"])
             if dist > radius_miles:
@@ -371,12 +422,29 @@ async def home(
     if parsed_lat is not None and parsed_lon is not None:
         filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
+    # --- POPULATE AREA RESTAURANTS IF DISHES ARE LOW OR LOCATION IS SPECIFIED ---
+    discovered_restaurants = []
+    area_label = ""
+
+    if parsed_lat is not None and parsed_lon is not None:
+        area_label = "Spots Near You"
+        discovered_restaurants = await fetch_area_restaurants_gps(parsed_lat, parsed_lon)
+    elif location_query and location_query.strip():
+        area_label = f"Spots in {location_query.strip().title()}"
+        discovered_restaurants = await fetch_area_restaurants_query(location_query.strip())
+    elif len(filtered_plates) == 0:
+        # Default explore fallback
+        area_label = "Trending Food Spots"
+        discovered_restaurants = await fetch_area_restaurants_query("local dining")
+
     return templates.TemplateResponse(
         request=request,
         name="feed.html",
         context={
             "user": user,
             "plates": filtered_plates,
+            "discovered_restaurants": discovered_restaurants,
+            "area_label": area_label,
             "categories": CATEGORIES,
             "selected_category": category or "",
             "food_query": food_query or "",
