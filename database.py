@@ -10,14 +10,13 @@ DATABASE_URL = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get(
 
 
 def get_connection(retries=5, delay=2):
-    """Establishes a connection with automatic retry for startup delays."""
     for attempt in range(retries):
         try:
             conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
             return conn
         except psycopg2.OperationalError as e:
             if attempt < retries - 1:
-                print(f"[!] Database connection failed (attempt {attempt + 1}/{retries}). Retrying in {delay}s...")
+                print(f"[!] Database retry {attempt + 1}/{retries}...")
                 time.sleep(delay)
             else:
                 raise e
@@ -27,7 +26,7 @@ def init_db():
     conn = get_connection()
     c = conn.cursor()
 
-    # Users Table
+    # Users
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -37,24 +36,27 @@ def init_db():
     );
     """)
 
-    # Safe migration: password_hash
+    # Shared Restaurants Registry (Custom and Cached Spots)
     c.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name='users' AND column_name='password_hash'
-            ) THEN
-                ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
-            END IF;
-        END $$;
+    CREATE TABLE IF NOT EXISTS restaurants (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        address TEXT,
+        website TEXT,
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(name, address)
+    );
     """)
 
-    # Plates Table
+    # Plates
     c.execute("""
     CREATE TABLE IF NOT EXISTS plates (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL,
         dish_name VARCHAR(255) NOT NULL,
         restaurant VARCHAR(255) NOT NULL,
         restaurant_address TEXT,
@@ -70,7 +72,7 @@ def init_db():
     );
     """)
 
-    # Safe migration: category column
+    # Safe Migrations
     c.execute("""
         DO $$
         BEGIN
@@ -80,10 +82,17 @@ def init_db():
             ) THEN
                 ALTER TABLE plates ADD COLUMN category VARCHAR(100);
             END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='plates' AND column_name='restaurant_id'
+            ) THEN
+                ALTER TABLE plates ADD COLUMN restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL;
+            END IF;
         END $$;
     """)
 
-    # Interactions Table
+    # Interactions
     c.execute("""
     CREATE TABLE IF NOT EXISTS interactions (
         id SERIAL PRIMARY KEY,
@@ -94,7 +103,7 @@ def init_db():
     );
     """)
 
-    # Comments Table
+    # Comments
     c.execute("""
     CREATE TABLE IF NOT EXISTS comments (
         id SERIAL PRIMARY KEY,
@@ -108,7 +117,7 @@ def init_db():
     conn.commit()
     c.close()
     conn.close()
-    print("[Postgres] Database initialized with category and password support.")
+    print("[Postgres] Database initialized with shared restaurants registry.")
 
 
 if __name__ == "__main__":

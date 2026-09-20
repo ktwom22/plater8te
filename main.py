@@ -265,6 +265,58 @@ def compute_plate_badges(plate: dict) -> list:
     return badges
 
 
+# --- SHARED RESTAURANTS REGISTRY HELPER ---
+
+def get_community_restaurants(conn, lat=None, lon=None, query=None, radius_miles=8.0):
+    c = conn.cursor()
+    c.execute("""
+        SELECT r.*, 
+               COUNT(p.id) as plate_count,
+               AVG(p.rating) as avg_rating
+        FROM restaurants r
+        LEFT JOIN plates p ON r.id = p.restaurant_id
+        GROUP BY r.id
+        ORDER BY r.created_at DESC
+    """)
+    rows = c.fetchall()
+    c.close()
+
+    results = []
+    for r in rows:
+        name = r["name"]
+        address = r["address"] or ""
+        website = r["website"] or ""
+        r_lat = r["latitude"]
+        r_lon = r["longitude"]
+
+        # Text Query filter
+        if query:
+            q = query.lower()
+            if q not in name.lower() and q not in address.lower():
+                continue
+
+        # Proximity filter
+        dist = None
+        if lat is not None and lon is not None and r_lat and r_lon:
+            dist = haversine_miles(lat, lon, r_lat, r_lon)
+            if dist > radius_miles:
+                continue
+
+        results.append({
+            "id": r["id"],
+            "name": name,
+            "address": address,
+            "website": website,
+            "rating": round(float(r["avg_rating"]), 1) if r["avg_rating"] else None,
+            "user_ratings_total": r["plate_count"],
+            "lat": r_lat,
+            "lon": r_lon,
+            "distance_miles": round(dist, 1) if dist is not None else None,
+            "is_community_added": True
+        })
+    return results
+
+
 # --- GOOGLE PLACES API (NEW) HANDLERS ---
 
 async def fetch_area_restaurants_gps(lat: float, lon: float):
@@ -315,7 +367,8 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
                     "user_ratings_total": place.get("userRatingCount"),
                     "lat": p_lat,
                     "lon": p_lon,
-                    "distance_miles": round(dist, 1) if dist is not None else None
+                    "distance_miles": round(dist, 1) if dist is not None else None,
+                    "is_community_added": False
                 })
             spots.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 9999)
             return spots
@@ -361,7 +414,8 @@ async def fetch_area_restaurants_query(query_text: str):
                     "user_ratings_total": place.get("userRatingCount"),
                     "lat": place.get("location", {}).get("latitude"),
                     "lon": place.get("location", {}).get("longitude"),
-                    "distance_miles": None
+                    "distance_miles": None,
+                    "is_community_added": False
                 })
             return spots
     except Exception as e:
@@ -548,9 +602,6 @@ async def home(
     if user:
         user_badges = compute_user_badges(user["id"], conn)
 
-    c.close()
-    conn.close()
-
     filtered_plates = []
     for plate in all_plates:
         if category and category.strip():
@@ -586,19 +637,40 @@ async def home(
     if parsed_lat is not None and parsed_lon is not None:
         filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
-    # Google Places discovery execution
-    discovered_restaurants = []
+    # 1. Fetch Community-Added Restaurants from Shared Table
+    community_spots = get_community_restaurants(
+        conn, lat=parsed_lat, lon=parsed_lon, query=location_query
+    )
+
+    c.close()
+    conn.close()
+
+    # 2. Fetch External Google Places Spots
+    google_spots = []
     area_label = ""
 
     if parsed_lat is not None and parsed_lon is not None:
         area_label = "Spots Near You"
-        discovered_restaurants = await fetch_area_restaurants_gps(parsed_lat, parsed_lon)
+        google_spots = await fetch_area_restaurants_gps(parsed_lat, parsed_lon)
     elif location_query and location_query.strip():
         area_label = f"Spots in {location_query.strip().title()}"
-        discovered_restaurants = await fetch_area_restaurants_query(location_query.strip())
+        google_spots = await fetch_area_restaurants_query(location_query.strip())
     else:
         area_label = "Local Independent Eateries"
-        discovered_restaurants = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
+        google_spots = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
+
+    # 3. Merge Lists (Community spots prioritized, avoiding duplicate names)
+    existing_names = set()
+    discovered_restaurants = []
+
+    for spot in community_spots:
+        existing_names.add(spot["name"].strip().lower())
+        discovered_restaurants.append(spot)
+
+    for spot in google_spots:
+        if spot["name"].strip().lower() not in existing_names:
+            existing_names.add(spot["name"].strip().lower())
+            discovered_restaurants.append(spot)
 
     return templates.TemplateResponse(
         request=request,
@@ -705,7 +777,7 @@ async def my_plates_page(request: Request):
     )
 
 
-# --- CREATE PLATE ---
+# --- CREATE PLATE (PERSISTS TO SHARED RESTAURANTS REGISTRY) ---
 
 @app.post("/plates")
 async def create_plate(
@@ -738,21 +810,50 @@ async def create_plate(
 
     final_rating = None if is_skipped else rating
     final_reorder = None if is_skipped else reorder
-    lat = float(latitude) if latitude else None
-    lon = float(longitude) if longitude else None
+    lat = float(latitude) if latitude and latitude.strip() else None
+    lon = float(longitude) if longitude and longitude.strip() else None
+
+    clean_rest = restaurant.strip()
+    clean_addr = restaurant_address.strip()
+    clean_web = restaurant_website.strip()
 
     conn = get_connection()
     c = conn.cursor()
+
+    # Find or Create in Shared Restaurants Table
+    c.execute("SELECT id FROM restaurants WHERE LOWER(name) = LOWER(%s)", (clean_rest,))
+    rest_row = c.fetchone()
+
+    if rest_row:
+        restaurant_id = rest_row["id"]
+        # Update missing address/coords if newly available
+        if (lat and lon) or clean_web or clean_addr:
+            c.execute("""
+                UPDATE restaurants 
+                SET address = COALESCE(NULLIF(address, ''), %s),
+                    website = COALESCE(NULLIF(website, ''), %s),
+                    latitude = COALESCE(latitude, %s),
+                    longitude = COALESCE(longitude, %s)
+                WHERE id = %s
+            """, (clean_addr, clean_web, lat, lon, restaurant_id))
+    else:
+        c.execute("""
+            INSERT INTO restaurants (name, address, website, latitude, longitude, created_by_user_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (clean_rest, clean_addr, clean_web, lat, lon, user["id"]))
+        restaurant_id = c.fetchone()["id"]
+
+    # Insert Plate linked to the Shared Restaurant ID
     c.execute("""
         INSERT INTO plates (
-            user_id, dish_name, restaurant, category, restaurant_address, 
+            user_id, restaurant_id, dish_name, restaurant, category, restaurant_address, 
             restaurant_website, latitude, longitude, photo_url, rating, reorder
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """, (
-        user["id"], dish_name.strip(), restaurant.strip(),
-        (category or "Other").strip(),
-        restaurant_address.strip(), restaurant_website.strip(),
+        user["id"], restaurant_id, dish_name.strip(), clean_rest,
+        (category or "Other").strip(), clean_addr, clean_web,
         lat, lon, photo_url, final_rating, final_reorder
     ))
     plate_id = c.fetchone()["id"]
