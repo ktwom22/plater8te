@@ -130,6 +130,141 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
+# --- BADGE ENGINES ---
+
+def compute_user_badges(user_id: int, conn) -> list:
+    """Computes comprehensive tier, category, and engagement badges."""
+    c = conn.cursor()
+    badges = []
+
+    # 1. Pioneer
+    if user_id <= 25:
+        badges.append({"label": "Pioneer", "icon": "🚀", "color": "bg-indigo-50 text-indigo-700 border-indigo-200"})
+
+    # 2. Volume Tiers
+    c.execute("""
+        SELECT COUNT(*) AS total,
+               AVG(rating) AS avg_rating,
+               COUNT(CASE WHEN rating = 10 THEN 1 END) AS tens_count,
+               COUNT(CASE WHEN photo_url IS NOT NULL THEN 1 END) AS photo_count
+        FROM plates WHERE user_id = %s
+    """, (user_id,))
+    stats = c.fetchone()
+    total_plates = stats["total"] or 0
+    avg_rating = stats["avg_rating"] or 0
+    tens_count = stats["tens_count"] or 0
+    photo_count = stats["photo_count"] or 0
+
+    if total_plates >= 30:
+        badges.append({"label": "Plate Legend", "icon": "👑", "color": "bg-amber-100 text-amber-900 border-amber-300"})
+    elif total_plates >= 15:
+        badges.append({"label": "Top Critic", "icon": "🥇", "color": "bg-amber-50 text-amber-800 border-amber-200"})
+    elif total_plates >= 5:
+        badges.append({"label": "Foodie", "icon": "🍽️", "color": "bg-slate-100 text-slate-700 border-slate-200"})
+    elif total_plates >= 1:
+        badges.append({"label": "Apprentice", "icon": "🥉", "color": "bg-stone-50 text-stone-700 border-stone-200"})
+
+    # 3. Palate Traits
+    if total_plates >= 5:
+        if avg_rating >= 8.5:
+            badges.append({"label": "Taste Maker", "icon": "🌟", "color": "bg-rose-50 text-rose-700 border-rose-200"})
+        elif avg_rating <= 6.5:
+            badges.append({"label": "Tough Room", "icon": "🎯", "color": "bg-red-50 text-red-700 border-red-200"})
+
+    if tens_count >= 2:
+        badges.append({"label": "Perfectionist", "icon": "💯", "color": "bg-emerald-50 text-emerald-700 border-emerald-200"})
+
+    if total_plates >= 5 and photo_count == total_plates:
+        badges.append({"label": "Visual Storyteller", "icon": "📸", "color": "bg-cyan-50 text-cyan-700 border-cyan-200"})
+
+    # 4. Social Engagement
+    c.execute("""
+        SELECT COUNT(cm.id) AS comments_received
+        FROM plates p
+        JOIN comments cm ON p.id = cm.plate_id
+        WHERE p.user_id = %s
+    """, (user_id,))
+    comments_received = c.fetchone()["comments_received"] or 0
+    if comments_received >= 15:
+        badges.append({"label": "Conversation Starter", "icon": "💬", "color": "bg-sky-50 text-sky-700 border-sky-200"})
+
+    c.execute("SELECT COUNT(*) AS total_saves FROM interactions WHERE user_id = %s AND type = 'save'", (user_id,))
+    saves_count = c.fetchone()["total_saves"] or 0
+    if saves_count >= 10:
+        badges.append({"label": "Trophy Vault", "icon": "🔖", "color": "bg-violet-50 text-violet-700 border-violet-200"})
+
+    # 5. Cuisine Masteries (3+ posts in vertical)
+    c.execute("""
+        SELECT category, COUNT(*) as cat_count
+        FROM plates
+        WHERE user_id = %s AND category IS NOT NULL
+        GROUP BY category
+    """, (user_id,))
+    cuisine_counts = {row["category"]: row["cat_count"] for row in c.fetchall()}
+
+    cuisine_badges = {
+        "Pizza": ("Pizza Connoisseur", "🍕"),
+        "Burgers": ("Burger Boss", "🍔"),
+        "Tacos & Mexican": ("Taco Baron", "🌮"),
+        "Pasta & Italian": ("Pasta Maestro", "🍝"),
+        "Asian & Noodles": ("Noodle Whisperer", "🍜"),
+        "Seafood": ("Catch of the Day", "🦞"),
+        "Desserts": ("Sweet Tooth", "🍰"),
+        "Drinks & Cocktails": ("Mixologist", "🍸")
+    }
+
+    for cat_name, (badge_label, badge_icon) in cuisine_badges.items():
+        if cuisine_counts.get(cat_name, 0) >= 3:
+            badges.append({
+                "label": badge_label,
+                "icon": badge_icon,
+                "color": "bg-orange-50 text-orange-800 border-orange-200"
+            })
+
+    c.close()
+    return badges
+
+
+def compute_plate_badges(plate: dict) -> list:
+    """Computes instant dish performance badges."""
+    badges = []
+    rating = plate.get("rating")
+    likes = plate.get("likes") or 0
+    comments = plate.get("comment_count") or 0
+    reorder = plate.get("reorder") or ""
+
+    # Rating Tiers
+    if rating == 10 and reorder == "Hell yes":
+        badges.append({"label": "God Tier", "icon": "👑", "color": "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm"})
+    elif rating and rating >= 9.0:
+        badges.append({"label": "Diamond Pick", "icon": "💎", "color": "bg-blue-50 text-blue-800 border-blue-200"})
+
+    # Social Proof
+    if likes >= 15:
+        badges.append({"label": "Viral Plate", "icon": "💥", "color": "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200"})
+    elif likes >= 5:
+        badges.append({"label": "Crowd Favorite", "icon": "🔥", "color": "bg-rose-50 text-rose-700 border-rose-200"})
+
+    if comments >= 6:
+        badges.append({"label": "Town Square", "icon": "🗣️", "color": "bg-indigo-50 text-indigo-700 border-indigo-200"})
+    elif comments >= 2:
+        badges.append({"label": "Buzzing", "icon": "💬", "color": "bg-sky-50 text-sky-700 border-sky-200"})
+
+    saves = plate.get("saves") or 0
+    if saves >= 5:
+        badges.append({"label": "Must-Try", "icon": "🔖", "color": "bg-purple-50 text-purple-700 border-purple-200"})
+
+    if rating and rating >= 8.5 and likes < 2:
+        badges.append({"label": "Hidden Gem", "icon": "⚡", "color": "bg-emerald-50 text-emerald-800 border-emerald-200"})
+
+    if reorder == "Hell yes" and not any(b["label"] == "God Tier" for b in badges):
+        badges.append({"label": "Hell Yes", "icon": "🔥", "color": "bg-emerald-50 text-emerald-700 border-emerald-200"})
+    elif reorder == "Pass":
+        badges.append({"label": "Pass", "icon": "🚫", "color": "bg-slate-100 text-slate-600 border-slate-200"})
+
+    return badges
+
+
 # --- GOOGLE PLACES API (NEW) HANDLERS ---
 
 async def fetch_area_restaurants_gps(lat: float, lon: float):
@@ -144,7 +279,6 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
         "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
         "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.location,places.types,places.rating,places.userRatingCount"
     }
-    # Only standard, supported Table A place types to prevent 400 Bad Request
     payload = {
         "includedTypes": ["restaurant", "cafe", "bakery", "bar"],
         "excludedTypes": ["fast_food_restaurant"],
@@ -406,6 +540,14 @@ async def home(
         """, (plate["id"],))
         plate["comments"] = c.fetchall()
 
+        # Dynamic badges
+        plate["plate_badges"] = compute_plate_badges(plate)
+        plate["author_badges"] = compute_user_badges(plate["user_id"], conn)
+
+    user_badges = []
+    if user:
+        user_badges = compute_user_badges(user["id"], conn)
+
     c.close()
     conn.close()
 
@@ -455,7 +597,6 @@ async def home(
         area_label = f"Spots in {location_query.strip().title()}"
         discovered_restaurants = await fetch_area_restaurants_query(location_query.strip())
     else:
-        # Default explore fallback when no GPS provided yet
         area_label = "Local Independent Eateries"
         discovered_restaurants = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
 
@@ -464,6 +605,7 @@ async def home(
         name="feed.html",
         context={
             "user": user,
+            "user_badges": user_badges,
             "plates": filtered_plates,
             "discovered_restaurants": discovered_restaurants,
             "area_label": area_label,

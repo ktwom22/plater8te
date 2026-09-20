@@ -63,13 +63,18 @@
         <span class="text-xl font-black tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">PlateRate</span>
       </a>
 
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2.5">
         {% if user %}
-          <div class="flex items-center space-x-2.5">
+          <div class="flex items-center space-x-2">
             <span class="text-[11px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
               @{{ user.username }}
             </span>
-            <a href="/logout" class="text-xs text-slate-400 hover:text-rose-600 font-medium transition">Exit</a>
+            {% for b in user_badges %}
+              <span class="hidden sm:inline-flex items-center text-[10px] font-extrabold px-2 py-0.5 rounded-md border {{ b.color }}">
+                {{ b.icon }} {{ b.label }}
+              </span>
+            {% endfor %}
+            <a href="/logout" class="text-xs text-slate-400 hover:text-rose-600 font-medium transition ml-1">Exit</a>
           </div>
         {% else %}
           <a href="#auth" class="text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-3.5 py-1.5 rounded-full border border-slate-200 transition">
@@ -334,32 +339,42 @@
 
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none"></div>
 
-          <div class="absolute top-4 left-4 flex flex-wrap gap-2">
+          <!-- Top Badge Bar -->
+          <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 max-w-[70%]">
             {% if plate.category %}
-              <span class="text-[11px] font-bold bg-white/95 backdrop-blur-md text-slate-900 px-3 py-1 rounded-full shadow-md border border-white/40">
+              <span class="text-[11px] font-bold bg-white/95 backdrop-blur-md text-slate-900 px-2.5 py-0.5 rounded-full shadow-md border border-white/40">
                 {{ plate.category }}
               </span>
             {% endif %}
             {% if plate.is_sponsored %}
-              <span class="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2.5 py-1 rounded-full shadow-md">
+              <span class="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full shadow-md">
                 Featured
               </span>
             {% endif %}
+
+            <!-- Dynamic Plate Badges -->
+            {% for pb in plate.plate_badges %}
+              <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm border backdrop-blur-md {{ pb.color }}">
+                {{ pb.icon }} {{ pb.label }}
+              </span>
+            {% endfor %}
+
             {% if plate.distance_miles is not none %}
-              <span class="text-[11px] font-bold bg-white/90 backdrop-blur-md text-slate-800 px-2.5 py-1 rounded-full shadow-md border border-white/40">
+              <span class="text-[11px] font-bold bg-white/90 backdrop-blur-md text-slate-800 px-2 py-0.5 rounded-full shadow-md border border-white/40">
                 📍 {{ plate.distance_miles }} mi
               </span>
             {% endif %}
           </div>
 
-          <div class="absolute top-4 right-4">
+          <!-- Score Pill -->
+          <div class="absolute top-3 right-3">
             {% if plate.rating %}
-              <div class="score-badge text-white font-black px-3.5 py-1.5 rounded-2xl text-base flex items-center space-x-1">
+              <div class="score-badge text-white font-black px-3 py-1 rounded-2xl text-base flex items-center space-x-1">
                 <span>★</span>
                 <span>{{ plate.rating }}.0</span>
               </div>
             {% else %}
-              <span class="bg-rose-500 text-white text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md">
+              <span class="bg-rose-500 text-white text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xl shadow-md">
                 Rating Pending
               </span>
             {% endif %}
@@ -406,8 +421,14 @@
           </div>
           {% endif %}
 
-          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <!-- Author Profile & User Badges -->
+          <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 pt-1">
             <span>Posted by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
+            {% for ub in plate.author_badges %}
+              <span class="inline-flex items-center text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border {{ ub.color }}">
+                {{ ub.icon }} {{ ub.label }}
+              </span>
+            {% endfor %}
           </div>
 
           <div class="flex items-center justify-between border-t border-slate-100 pt-3.5 text-xs">
@@ -784,7 +805,6 @@
       }
 
       if (candidates.length === 0) {
-        // Automatically ask to locate if user clicked without any results
         const confirmLoc = confirm("No restaurants loaded yet. Locate your area now?");
         if (confirmLoc) {
           triggerDeviceLocation();
