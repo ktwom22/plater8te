@@ -3,303 +3,419 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PlateRate - Discover Plates Around You</title>
+  <title>PlateRate — Curated Plates & Honest Takes</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .glass-nav {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    .plate-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
+    }
+    .plate-card:hover {
+      box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.08), 0 10px 15px -3px rgba(15, 23, 42, 0.03);
+    }
+    .score-badge {
+      background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+      box-shadow: 0 4px 14px 0 rgba(217, 119, 6, 0.35);
+    }
+    .coral-glow {
+      box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.25);
+    }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-900 pb-28">
+<body class="bg-[#f8fafc] text-slate-900 min-h-screen selection:bg-rose-500 selection:text-white pb-32">
 
-  <!-- Main Sticky Nav -->
-  <header class="bg-white border-b sticky top-0 z-40 shadow-sm">
-    <div class="max-w-xl mx-auto px-4 py-3 flex justify-between items-center">
-      <a href="/" class="text-2xl font-black text-rose-600 tracking-tight">PlateRate 🍽️</a>
-      {% if user %}
-        <div class="flex items-center space-x-3">
-          <span class="text-xs font-semibold bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full">@{{ user.username }}</span>
-          <a href="/logout" class="text-xs text-rose-500 font-semibold hover:underline">Log Out</a>
-        </div>
-      {% else %}
-        <a href="#auth" class="text-xs text-rose-600 font-bold hover:underline">Sign In / Join</a>
-      {% endif %}
+  <!-- Crisp White Frosted Sticky Nav -->
+  <header class="sticky top-0 z-40 glass-nav">
+    <div class="max-w-xl mx-auto px-5 py-3.5 flex justify-between items-center">
+      <a href="/" class="flex items-center space-x-2 group">
+        <span class="text-xl">🍽️</span>
+        <span class="text-xl font-black tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">PlateRate</span>
+      </a>
+
+      <div class="flex items-center space-x-3">
+        {% if user %}
+          <div class="flex items-center space-x-2.5">
+            <span class="text-[11px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              @{{ user.username }}
+            </span>
+            <a href="/logout" class="text-xs text-slate-400 hover:text-rose-600 font-medium transition">Exit</a>
+          </div>
+        {% else %}
+          <a href="#auth" class="text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-3.5 py-1.5 rounded-full border border-slate-200 transition">
+            Sign In
+          </a>
+        {% endif %}
+      </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <nav class="max-w-xl mx-auto px-4 flex space-x-6 text-sm font-bold border-t border-gray-100">
-      <a href="/" class="py-2.5 text-rose-600 border-b-2 border-rose-600">Feed</a>
+    <!-- Navigation Pills -->
+    <nav class="max-w-xl mx-auto px-5 flex space-x-5 text-xs font-bold pb-2 pt-0.5">
+      <a href="/" class="pb-1.5 text-rose-600 border-b-2 border-rose-600 font-extrabold tracking-wide">Live Feed</a>
       {% if user %}
-        <a href="/favorites" class="py-2.5 text-gray-500 hover:text-gray-900">Favorites (Saved)</a>
-        <a href="/my-plates" class="py-2.5 text-gray-500 hover:text-gray-900">My Plates</a>
+        <a href="/favorites" class="pb-1.5 text-slate-500 hover:text-slate-900 transition font-semibold">Saved</a>
+        <a href="/my-plates" class="pb-1.5 text-slate-500 hover:text-slate-900 transition font-semibold">My Log</a>
       {% endif %}
     </nav>
   </header>
 
-  <main class="max-w-xl mx-auto p-4 space-y-6">
+  <main class="max-w-xl mx-auto p-4 space-y-6 pt-5">
 
-    <!-- Area Discovery / Filter Search Bar -->
-    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 space-y-3">
-      <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Find Plates in Your Area</h2>
-      <form id="discoveryForm" action="/" method="get" onsubmit="cleanEmptyCoordinates(this)" class="space-y-2">
+    <!-- Discovery Search / Radar Bar -->
+    <div class="plate-card p-4 rounded-3xl space-y-3">
+      <form id="discoveryForm" action="/" method="get" onsubmit="cleanEmptyCoordinates(this)" class="space-y-2.5">
         <div class="flex space-x-2">
-          <input type="text" name="food_query" value="{{ food_query }}" placeholder="Food/Dish (e.g., Tacos, Pasta)" class="w-1/2 border border-gray-300 p-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-rose-500">
-          <input type="text" name="location_query" id="locInput" value="{{ location_query }}" placeholder="City, State, or Zip" class="w-1/2 border border-gray-300 p-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-rose-500">
+          <div class="relative flex-1">
+            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Craving or dish (e.g. Tacos)..."
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
+          </div>
+          <div class="relative flex-1">
+            <input type="text" name="location_query" id="locInput" value="{{ location_query }}" placeholder="City, neighborhood, zip..."
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
+          </div>
         </div>
 
         <input type="hidden" name="user_lat" id="feedLat" value="{{ user_lat if user_lat else '' }}">
         <input type="hidden" name="user_lon" id="feedLon" value="{{ user_lon if user_lon else '' }}">
 
         <div class="flex items-center justify-between pt-1">
-          <button type="button" onclick="searchNearMeGPS()" id="gpsBtn" class="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg font-bold hover:bg-rose-100 transition">
-            📍 Use My GPS
+          <button type="button" onclick="searchNearMeGPS()" id="gpsBtn"
+                  class="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200/80 px-3 py-1.5 rounded-xl hover:bg-rose-100 transition flex items-center space-x-1.5">
+            <span>📍</span>
+            <span>Near Me</span>
           </button>
-          <div class="flex space-x-2">
+
+          <div class="flex items-center space-x-2">
             {% if food_query or location_query or user_lat %}
-              <a href="/" class="text-xs text-gray-500 hover:underline self-center mr-1">Clear</a>
+              <a href="/" class="text-xs text-slate-400 hover:text-slate-700 underline mr-1">Reset</a>
             {% endif %}
-            <button type="submit" class="bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-black transition">Filter Plates</button>
+            <button type="submit" class="bg-slate-900 hover:bg-black text-white text-xs font-black px-4 py-2 rounded-xl transition transform active:scale-95 shadow-sm">
+              Filter
+            </button>
           </div>
         </div>
       </form>
     </div>
 
-    <!-- ================= MODERN TABBED AUTH CARD ================= -->
+    <!-- Light Minimal Auth Card (Guest View) -->
     {% if not user %}
-    <div id="auth" class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-20">
-      <!-- Error Banner -->
+    <div id="auth" class="plate-card rounded-3xl overflow-hidden scroll-mt-20">
       {% if auth_error %}
       <div class="bg-rose-50 border-b border-rose-200 p-3 text-center">
         <p class="text-xs font-bold text-rose-700">⚠️ {{ auth_error }}</p>
       </div>
       {% endif %}
 
-      <!-- Switchable Tabs -->
-      <div class="grid grid-cols-2 text-center border-b border-gray-100 bg-gray-50/70 text-xs font-extrabold text-gray-500">
+      <div class="grid grid-cols-2 text-center border-b border-slate-100 bg-slate-50/70 text-xs font-extrabold text-slate-400">
         <button type="button" onclick="switchAuthTab('login')" id="tabBtnLogin" class="py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition">
           Log In
         </button>
-        <button type="button" onclick="switchAuthTab('signup')" id="tabBtnSignup" class="py-3.5 border-b-2 border-transparent hover:text-gray-900 transition">
-          Create Account
+        <button type="button" onclick="switchAuthTab('signup')" id="tabBtnSignup" class="py-3.5 border-b-2 border-transparent hover:text-slate-800 transition">
+          New Account
         </button>
       </div>
 
       <div class="p-6">
-        <!-- Log In Form -->
-        <form id="formLogin" action="/login" method="post" class="space-y-4">
+        <!-- Log In -->
+        <form id="formLogin" action="/login" method="post" class="space-y-3.5">
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Username or Email</label>
-            <input type="text" name="identifier" required placeholder="foodie_sam or sam@example.com" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Username or Email</label>
+            <input type="text" name="identifier" required placeholder="foodie_sam"
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Password</label>
-            <input type="password" name="password" required placeholder="••••••••" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Password</label>
+            <input type="password" name="password" required placeholder="••••••••"
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
-          <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.99] text-sm">
-            Sign In to PlateRate
+          <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.98] text-xs uppercase tracking-wider">
+            Sign In
           </button>
         </form>
 
-        <!-- Sign Up Form (Initially Hidden) -->
-        <form id="formSignup" action="/signup" method="post" class="space-y-4 hidden">
+        <!-- Sign Up -->
+        <form id="formSignup" action="/signup" method="post" class="space-y-3.5 hidden">
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Pick a Username</label>
-            <input type="text" name="username" required placeholder="e.g. pizzaguy_99" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Choose Username</label>
+            <input type="text" name="username" required placeholder="e.g. pastafiend"
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Email Address</label>
-            <input type="email" name="email" required placeholder="you@domain.com" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
-            <p class="text-[10px] text-gray-400 mt-1">Used for 45-min review reminders and your account.</p>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+            <input type="email" name="email" required placeholder="you@domain.com"
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
+            <p class="text-[10px] text-slate-400 mt-1">Used for your 45-minute post-meal review reminder.</p>
           </div>
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Create Password</label>
-            <input type="password" name="password" minlength="6" required placeholder="Minimum 6 characters" class="w-full border border-gray-300 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 bg-gray-50/40">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Create Password</label>
+            <input type="password" name="password" minlength="6" required placeholder="Min 6 characters"
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
-          <button type="submit" class="w-full bg-gray-900 hover:bg-black text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.99] text-sm">
-            Join the Plate Community
+          <button type="submit" class="w-full bg-slate-900 hover:bg-black text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.98] text-xs uppercase tracking-wider">
+            Create Account
           </button>
         </form>
       </div>
     </div>
     {% endif %}
 
-    <!-- Post Plate Trigger Banner (Logged In) -->
+    <!-- Top Action Card (Logged In) -->
     {% if user %}
-    <div class="bg-gradient-to-r from-rose-500 to-rose-600 rounded-2xl p-4 shadow-sm flex items-center justify-between text-white">
-      <div>
-        <h3 class="font-black text-lg">Eating something good?</h3>
-        <p class="text-xs text-rose-100 font-medium">Rate the plate or set a 45-min reminder.</p>
+    <div class="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-r from-rose-500 via-rose-600 to-orange-500 text-white flex items-center justify-between coral-glow">
+      <div class="space-y-0.5">
+        <h3 class="font-black text-lg tracking-tight">Eating something good?</h3>
+        <p class="text-xs text-rose-100 font-medium">Rate the plate or queue a 45-minute digest reminder.</p>
       </div>
-      <button type="button" onclick="openPostModal()" class="bg-white text-rose-600 font-extrabold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-50 shadow-md transition transform active:scale-95">
-        + Post a Plate
+      <button type="button" onclick="openPostModal()"
+              class="bg-white text-rose-600 hover:bg-rose-50 font-black px-4 py-2.5 rounded-2xl text-xs shadow-md transition transform active:scale-95 flex items-center space-x-1.5">
+        <span class="text-sm leading-none">+</span>
+        <span>Drop Plate</span>
       </button>
     </div>
     {% endif %}
 
-    <!-- Feed Cards -->
-    <div class="space-y-5">
+    <!-- Clean Plate Feed Cards -->
+    <div class="space-y-6">
       {% if not plates %}
-        <div class="bg-white p-8 rounded-2xl border border-gray-200 text-center space-y-2">
-          <p class="font-bold text-gray-700">No plates match your location or search filter.</p>
-          <a href="/" class="text-xs text-rose-600 font-bold hover:underline">Reset filters and see all plates</a>
+        <div class="plate-card p-10 rounded-3xl text-center space-y-2 border-dashed">
+          <p class="font-bold text-slate-600">No plates match this search yet.</p>
+          <a href="/" class="text-xs text-rose-600 font-bold hover:underline">Reset view</a>
         </div>
       {% endif %}
 
       {% for plate in plates %}
-      <div id="plate-{{ plate.id }}" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <article id="plate-{{ plate.id }}" class="plate-card rounded-3xl overflow-hidden transition duration-300">
+
+        <!-- Plate Photo Header -->
         {% if plate.photo_url %}
-          <img src="{{ plate.photo_url }}" alt="{{ plate.dish_name }}" class="w-full aspect-square object-cover">
-        {% endif %}
+        <div class="relative w-full aspect-square bg-slate-100 overflow-hidden group">
+          <img src="{{ plate.photo_url }}" alt="{{ plate.dish_name }}"
+               class="w-full h-full object-cover object-center group-hover:scale-[1.02] transition duration-500">
 
-        <div class="p-5 space-y-3">
-          <div class="flex justify-between items-start">
-            <div>
-              <h3 class="text-xl font-black text-gray-900 leading-tight">{{ plate.dish_name }}</h3>
-              <p class="text-sm font-semibold text-gray-700 mt-1">📍 {{ plate.restaurant }}</p>
-              {% if plate.restaurant_address %}
-                <p class="text-xs text-gray-400 mt-0.5">{{ plate.restaurant_address }}</p>
-              {% endif %}
-              {% if plate.distance_miles is not none %}
-                <span class="inline-block mt-1 text-[11px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-                  {{ plate.distance_miles }} miles away
-                </span>
-              {% endif %}
-              <p class="text-[11px] text-gray-400 mt-1">Shared by @{{ plate.username }}</p>
-            </div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none"></div>
 
-            {% if plate.rating %}
-              <div class="text-right">
-                <div class="bg-amber-100 text-amber-900 font-extrabold px-3 py-1 rounded-xl text-base inline-block">
-                  ★ {{ plate.rating }}/10
-                </div>
-                <div class="text-[11px] font-bold text-gray-500 mt-1">{{ plate.reorder }}</div>
-              </div>
-            {% else %}
-              <span class="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-full">Rating Pending</span>
+          <!-- Floating Badges Top Left -->
+          <div class="absolute top-4 left-4 flex flex-wrap gap-2">
+            {% if plate.is_sponsored %}
+              <span class="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2.5 py-1 rounded-full shadow-md">
+                Featured
+              </span>
+            {% endif %}
+            {% if plate.distance_miles is not none %}
+              <span class="text-[11px] font-bold bg-white/90 backdrop-blur-md text-slate-800 px-2.5 py-1 rounded-full shadow-md border border-white/40">
+                📍 {{ plate.distance_miles }} mi
+              </span>
             {% endif %}
           </div>
 
-          <!-- Restaurant Link -->
+          <!-- Floating Score Pill Top Right -->
+          <div class="absolute top-4 right-4">
+            {% if plate.rating %}
+              <div class="score-badge text-white font-black px-3.5 py-1.5 rounded-2xl text-base flex items-center space-x-1">
+                <span>★</span>
+                <span>{{ plate.rating }}.0</span>
+              </div>
+            {% else %}
+              <span class="bg-rose-500 text-white text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md">
+                Rating Pending
+              </span>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Card Body -->
+        <div class="p-5 space-y-3.5">
+          <div class="flex justify-between items-start gap-4">
+            <div class="space-y-1">
+              <h3 class="text-xl font-black text-slate-900 tracking-tight leading-snug">{{ plate.dish_name }}</h3>
+              <p class="text-xs font-bold text-rose-600 flex items-center space-x-1">
+                <span>📍</span>
+                <span>{{ plate.restaurant }}</span>
+              </p>
+              {% if plate.restaurant_address %}
+                <p class="text-[11px] text-slate-400 leading-tight">{{ plate.restaurant_address }}</p>
+              {% endif %}
+            </div>
+
+            <!-- Reorder Pill -->
+            {% if plate.reorder %}
+              <div>
+                {% if plate.reorder == 'Hell yes' %}
+                  <span class="inline-flex items-center space-x-1 text-[11px] font-extrabold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span>🔥</span>
+                    <span>Reorder</span>
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center space-x-1 text-[11px] font-extrabold px-3 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                    <span>Pass</span>
+                  </span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Restaurant / Menu Button -->
           {% if plate.restaurant_website %}
-          <div class="pt-1">
+          <div>
             <a href="{{ plate.restaurant_website }}" target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center space-x-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 transition">
-              <span>View Restaurant & Menu</span>
-              <span>↗</span>
+               class="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition">
+              <span>View Spot / Menu</span>
+              <span class="text-slate-400">↗</span>
             </a>
           </div>
           {% endif %}
 
-          <!-- Interactions Bar -->
-          <div class="flex items-center space-x-6 border-t border-gray-100 pt-3 text-sm">
-            <form action="/plates/{{ plate.id }}/interact" method="post">
-              <input type="hidden" name="action_type" value="like">
-              <button type="submit" class="font-bold text-gray-600 hover:text-rose-600 flex items-center space-x-1.5 transition">
-                <span>❤️</span> <span>{{ plate.likes }}</span>
-              </button>
-            </form>
-            <form action="/plates/{{ plate.id }}/interact" method="post">
-              <input type="hidden" name="action_type" value="save">
-              <button type="submit" class="font-bold text-gray-600 hover:text-indigo-600 flex items-center space-x-1.5 transition">
-                <span>🔖</span> <span>{{ plate.saves }}</span>
-              </button>
-            </form>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+            <span>Posted by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
+          </div>
 
-            <!-- Toggle Comments Button -->
-            <button type="button" onclick="toggleComments('{{ plate.id }}')" class="font-bold text-gray-600 hover:text-gray-900 flex items-center space-x-1.5 transition">
-              <span>💬</span>
-              <span>{{ plate.comment_count }} comments</span>
-              <span id="comment-arrow-{{ plate.id }}" class="text-[10px] text-gray-400">▼</span>
+          <!-- Interaction Bar -->
+          <div class="flex items-center justify-between border-t border-slate-100 pt-3.5 text-xs">
+            <div class="flex items-center space-x-3">
+              <!-- Like -->
+              <form action="/plates/{{ plate.id }}/interact" method="post">
+                <input type="hidden" name="action_type" value="like">
+                <button type="submit" class="flex items-center space-x-1.5 bg-slate-50 hover:bg-rose-50 border border-slate-200/80 px-3 py-1.5 rounded-xl font-bold transition transform active:scale-95 text-slate-600 hover:text-rose-600">
+                  <span>❤️</span>
+                  <span>{{ plate.likes }}</span>
+                </button>
+              </form>
+
+              <!-- Bookmark -->
+              <form action="/plates/{{ plate.id }}/interact" method="post">
+                <input type="hidden" name="action_type" value="save">
+                <button type="submit" class="flex items-center space-x-1.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 px-3 py-1.5 rounded-xl font-bold transition transform active:scale-95 text-slate-600 hover:text-indigo-600">
+                  <span>🔖</span>
+                  <span>{{ plate.saves }}</span>
+                </button>
+              </form>
+            </div>
+
+            <!-- Comment Drawer Toggle -->
+            <button type="button" onclick="toggleComments('{{ plate.id }}')"
+                    class="flex items-center space-x-1.5 text-slate-500 hover:text-slate-900 font-bold transition px-2 py-1">
+              <span>💬 {{ plate.comment_count }} comments</span>
+              <span id="comment-arrow-{{ plate.id }}" class="text-[10px] text-slate-400">▼</span>
             </button>
           </div>
 
-          <!-- Expandable Comments Drawer -->
-          <div id="comments-drawer-{{ plate.id }}" class="hidden pt-3 border-t border-gray-100 space-y-3">
-            <div class="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+          <!-- Comments Drawer -->
+          <div id="comments-drawer-{{ plate.id }}" class="hidden pt-3 border-t border-slate-100 space-y-3">
+            <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
               {% if not plate.comments %}
-                <p class="text-xs text-gray-400 italic py-1">No comments yet. Start the conversation!</p>
+                <p class="text-xs text-slate-400 italic py-1">No comments yet. Start the conversation!</p>
               {% endif %}
 
               {% for c in plate.comments %}
-              <div class="bg-gray-50 rounded-xl p-2.5 text-xs space-y-1 border border-gray-100">
+              <div class="bg-slate-50 rounded-2xl p-3 text-xs space-y-1 border border-slate-100">
                 <div class="flex justify-between items-center text-[11px]">
-                  <span class="font-bold text-gray-900">@{{ c.username }}</span>
-                  <span class="text-gray-400 text-[10px]">{{ c.formatted_date }}</span>
+                  <span class="font-extrabold text-slate-800">@{{ c.username }}</span>
+                  <span class="text-slate-400 text-[10px]">{{ c.formatted_date }}</span>
                 </div>
-                <p class="text-gray-700 leading-relaxed">{{ c.comment }}</p>
+                <p class="text-slate-600 leading-relaxed">{{ c.comment }}</p>
               </div>
               {% endfor %}
             </div>
 
-            <!-- Comment Input Box -->
             {% if user %}
             <form action="/plates/{{ plate.id }}/comments" method="post" class="flex space-x-2 pt-1">
-              <input type="text" name="comment" placeholder="Add your take on this dish..." required class="flex-grow border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white">
-              <button type="submit" class="bg-gray-900 text-white font-bold px-4 py-2 rounded-xl text-xs hover:bg-black transition">Post</button>
+              <input type="text" name="comment" placeholder="Add your take..." required
+                     class="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 outline-none focus:bg-white focus:border-rose-500">
+              <button type="submit" class="bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs hover:bg-black transition">
+                Post
+              </button>
             </form>
             {% else %}
-              <p class="text-[11px] text-gray-400 italic"><a href="#auth" class="text-rose-600 underline">Sign in above</a> to leave a comment.</p>
+              <p class="text-[11px] text-slate-400 italic"><a href="#auth" class="text-rose-600 underline">Sign in</a> to leave your review.</p>
             {% endif %}
           </div>
 
         </div>
-      </div>
+      </article>
       {% endfor %}
     </div>
 
   </main>
 
-  <!-- Sticky Floating Action Button (Mobile) -->
+  <!-- Sticky Mobile FAB -->
   {% if user %}
-  <button type="button" onclick="openPostModal()" class="fixed bottom-6 right-6 z-40 bg-rose-600 text-white font-extrabold px-5 py-3.5 rounded-full shadow-2xl flex items-center space-x-2 hover:bg-rose-700 transition active:scale-95">
+  <button type="button" onclick="openPostModal()"
+          class="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-rose-600 to-orange-500 text-white font-black px-5 py-3.5 rounded-full shadow-xl flex items-center space-x-2 transition transform hover:scale-105 active:scale-95 coral-glow">
     <span class="text-lg leading-none">+</span>
-    <span class="text-xs tracking-wide">Share Plate</span>
+    <span class="text-xs tracking-wider uppercase">Post Plate</span>
   </button>
   {% endif %}
 
-  <!-- ================= POPUP POST MODAL ================= -->
+  <!-- ================= CLEAN WHITE POPUP MODAL ================= -->
   {% if user %}
-  <div id="postModalOverlay" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
+  <div id="postModalOverlay" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
 
       <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+      <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
-          <h2 class="font-black text-lg text-gray-900">Post a New Plate</h2>
-          <p class="text-[11px] text-gray-500">Review your dish or defer rating for 45 minutes.</p>
+          <h2 class="font-black text-lg text-slate-900">Log a New Plate</h2>
+          <p class="text-[11px] text-slate-500">Share your plate or trigger a 45-minute deferred digest.</p>
         </div>
-        <button type="button" onclick="closePostModal()" class="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none p-1 rounded-lg hover:bg-gray-100">&times;</button>
+        <button type="button" onclick="closePostModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold p-1">&times;</button>
       </div>
 
-      <!-- Modal Body Form -->
+      <!-- Modal Body -->
       <div class="p-6 overflow-y-auto space-y-4">
         <form id="platePostForm" action="/plates" method="post" enctype="multipart/form-data" class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Dish Name</label>
-            <input type="text" name="dish_name" placeholder="e.g. Truffle Pappardelle" required class="w-full border border-gray-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Dish Name</label>
+            <input type="text" name="dish_name" placeholder="e.g. Cacio e Pepe, Birria Tacos..." required
+                   class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 outline-none focus:bg-white focus:border-rose-500">
           </div>
 
-          <!-- Restaurant Search & Location -->
-          <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+          <!-- Spot Search -->
+          <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
             <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-gray-700 uppercase tracking-wider">Restaurant Search</label>
-              <button type="button" onclick="locateRestaurantGPS()" id="postLocBtn" class="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg font-bold hover:bg-rose-100 transition">
-                <span>📍 Find Near Me</span>
+              <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Restaurant Search</label>
+              <button type="button" onclick="locateRestaurantGPS()" id="postLocBtn"
+                      class="text-xs bg-rose-50 text-rose-600 border border-rose-200 px-3 py-1 rounded-lg font-bold hover:bg-rose-100 transition">
+                <span>📍 Nearby Spots</span>
               </button>
             </div>
 
             <div class="flex space-x-2">
-              <input type="text" id="postLocSearchInput" placeholder="Enter City, State or Zip..." class="flex-grow border border-gray-300 p-2.5 rounded-lg text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white">
-              <button type="button" onclick="searchPostLocation()" id="postSearchBtn" class="bg-gray-800 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-black transition">Search</button>
+              <input type="text" id="postLocSearchInput" placeholder="Enter neighborhood or city..."
+                     class="flex-grow bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 outline-none focus:border-rose-500">
+              <button type="button" onclick="searchPostLocation()" id="postSearchBtn"
+                      class="bg-slate-800 hover:bg-black text-white text-xs font-bold px-3.5 py-2 rounded-xl transition">
+                Search
+              </button>
             </div>
 
             <div id="resultsContainer" class="hidden space-y-1 pt-1">
-              <label class="text-[11px] font-bold text-gray-500 uppercase">Select Matching Restaurant:</label>
-              <select id="restaurantSelect" onchange="applySelectedRestaurant(this)" class="w-full border border-gray-300 p-2.5 rounded-lg text-xs bg-white font-medium text-gray-700">
-                <option value="">-- Choose from results --</option>
+              <label class="text-[10px] font-bold text-slate-400 uppercase">Select Match:</label>
+              <select id="restaurantSelect" onchange="applySelectedRestaurant(this)"
+                      class="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-xs text-slate-800 outline-none">
+                <option value="">-- Choose verified restaurant --</option>
               </select>
             </div>
 
-            <div class="space-y-2 pt-2 border-t border-gray-200">
-              <input type="text" name="restaurant" id="restaurantName" placeholder="Restaurant Name" required class="w-full border border-gray-300 p-2 rounded-lg text-xs bg-white outline-none">
-              <input type="text" name="restaurant_address" id="restaurantAddress" placeholder="Address (optional)" class="w-full border border-gray-300 p-2 rounded-lg text-xs bg-white outline-none">
-              <input type="url" name="restaurant_website" id="restaurantWebsite" placeholder="Website or Menu Link (optional)" class="w-full border border-gray-300 p-2 rounded-lg text-xs bg-white outline-none">
+            <div class="space-y-2 pt-2 border-t border-slate-200">
+              <input type="text" name="restaurant" id="restaurantName" placeholder="Restaurant Name" required
+                     class="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 outline-none">
+              <input type="text" name="restaurant_address" id="restaurantAddress" placeholder="Address (optional)"
+                     class="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 outline-none">
+              <input type="url" name="restaurant_website" id="restaurantWebsite" placeholder="Website or Menu URL"
+                     class="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 outline-none">
             </div>
 
             <input type="hidden" name="latitude" id="latField">
@@ -308,74 +424,85 @@
 
           <!-- Photo Canvas Upload -->
           <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Plate Photo</label>
-            <input type="file" id="photoFileInput" name="photo" accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 cursor-pointer">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Plate Photo</label>
+            <input type="file" id="photoFileInput" name="photo" accept="image/*"
+                   class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-rose-50 file:text-rose-600 hover:file:bg-rose-100 cursor-pointer">
           </div>
 
-          <div id="imageEditorContainer" class="hidden space-y-3 bg-neutral-900 p-3 rounded-2xl border border-neutral-800">
+          <div id="imageEditorContainer" class="hidden space-y-3 bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
             <div class="relative w-full aspect-square bg-black rounded-xl overflow-hidden flex items-center justify-center">
               <canvas id="photoCanvas" class="max-w-full max-h-full object-contain"></canvas>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 bg-neutral-800 p-3 rounded-xl text-xs text-neutral-300">
+            <div class="grid grid-cols-2 gap-3 bg-slate-800 p-3 rounded-xl text-xs text-slate-300">
               <div>
                 <div class="flex justify-between font-semibold mb-1">
                   <span>Brightness</span>
-                  <span id="brightnessVal" class="text-neutral-400">105%</span>
+                  <span id="brightnessVal" class="text-slate-400">105%</span>
                 </div>
                 <input type="range" id="sliderBrightness" min="60" max="150" value="105" oninput="applyFilters()" class="w-full accent-rose-500">
               </div>
               <div>
                 <div class="flex justify-between font-semibold mb-1">
                   <span>Warmth</span>
-                  <span id="saturationVal" class="text-neutral-400">120%</span>
+                  <span id="saturationVal" class="text-slate-400">120%</span>
                 </div>
                 <input type="range" id="sliderSaturation" min="80" max="180" value="120" oninput="applyFilters()" class="w-full accent-rose-500">
               </div>
             </div>
 
             <div class="flex space-x-2 pt-1">
-              <button type="button" onclick="setPreset('natural')" class="flex-1 py-1.5 rounded-lg border border-neutral-700 text-xs font-bold text-neutral-300 bg-neutral-800 hover:bg-neutral-700">Original</button>
-              <button type="button" onclick="setPreset('warm')" class="flex-1 py-1.5 rounded-lg border border-amber-600/40 text-xs font-bold text-amber-300 bg-amber-950/40 hover:bg-amber-900/60">🔥 Golden</button>
-              <button type="button" onclick="setPreset('punch')" class="flex-1 py-1.5 rounded-lg border border-rose-600/40 text-xs font-bold text-rose-300 bg-rose-950/40 hover:bg-rose-900/60">⚡ Pop</button>
+              <button type="button" onclick="setPreset('natural')" class="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700">Original</button>
+              <button type="button" onclick="setPreset('warm')" class="flex-1 py-1.5 rounded-lg border border-amber-600/40 text-xs font-bold text-amber-300 bg-amber-950/40 hover:bg-amber-900/60">🔥 Warmth</button>
+              <button type="button" onclick="setPreset('punch')" class="flex-1 py-1.5 rounded-lg border border-rose-600/40 text-xs font-bold text-rose-300 bg-rose-950/40 hover:bg-rose-900/60">⚡ Vibrant</button>
             </div>
           </div>
 
-          <!-- 45-Min Reminder Toggle -->
-          <div class="bg-rose-50 p-3.5 rounded-xl border border-rose-100">
-            <label class="flex items-center space-x-2 text-sm font-medium text-rose-900 cursor-pointer">
-              <input type="checkbox" name="skip_rating" value="true" id="skipToggle" onchange="toggleRatingFields(this)" class="w-4 h-4 text-rose-600 rounded">
-              <span>Haven't finished eating? Remind me in 45 mins</span>
+          <!-- 45-Min Reminder Option -->
+          <div class="bg-rose-50 p-3.5 rounded-2xl border border-rose-100">
+            <label class="flex items-center space-x-2.5 text-xs font-medium text-rose-900 cursor-pointer">
+              <input type="checkbox" name="skip_rating" value="true" id="skipToggle" onchange="toggleRatingFields(this)"
+                     class="w-4 h-4 rounded text-rose-600 focus:ring-0">
+              <span>Haven't finished eating? Send me a rating link in 45 mins</span>
             </label>
           </div>
 
-          <!-- Rating Fields -->
-          <div id="ratingFields" class="space-y-3">
+          <!-- Score Fields -->
+          <div id="ratingFields" class="space-y-4">
             <div>
-              <div class="flex justify-between text-xs font-semibold text-gray-500 uppercase mb-1">
+              <div class="flex justify-between text-xs font-bold text-slate-500 uppercase mb-1">
                 <span>Plate Score</span>
-                <span id="ratingDisplay" class="font-bold text-rose-600">8/10</span>
+                <span id="ratingDisplay" class="text-amber-600 font-extrabold text-sm">8.0 / 10</span>
               </div>
-              <input type="range" name="rating" min="1" max="10" value="8" oninput="document.getElementById('ratingDisplay').innerText = this.value + '/10'" class="w-full accent-rose-600">
+              <input type="range" name="rating" min="1" max="10" value="8"
+                     oninput="document.getElementById('ratingDisplay').innerText = this.value + '.0 / 10'"
+                     class="w-full accent-amber-500 cursor-pointer">
             </div>
+
             <div>
-              <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Would you order this again?</label>
-              <div class="flex space-x-6 text-sm">
-                <label class="flex items-center space-x-1.5 cursor-pointer">
-                  <input type="radio" name="reorder" value="Hell yes" checked class="text-rose-600">
-                  <span>Hell yes</span>
+              <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Verdict</label>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="border border-slate-200 bg-slate-50 hover:bg-slate-100 p-3 rounded-xl flex items-center justify-center space-x-2 cursor-pointer font-bold text-xs text-slate-900">
+                  <input type="radio" name="reorder" value="Hell yes" checked class="accent-rose-600">
+                  <span>🔥 Hell yes</span>
                 </label>
-                <label class="flex items-center space-x-1.5 cursor-pointer">
-                  <input type="radio" name="reorder" value="Pass" class="text-rose-600">
+                <label class="border border-slate-200 bg-slate-50 hover:bg-slate-100 p-3 rounded-xl flex items-center justify-center space-x-2 cursor-pointer font-bold text-xs text-slate-500">
+                  <input type="radio" name="reorder" value="Pass" class="accent-rose-600">
                   <span>Pass</span>
                 </label>
               </div>
             </div>
           </div>
 
-          <div class="pt-2 flex space-x-3">
-            <button type="button" onclick="closePostModal()" class="w-1/3 border border-gray-300 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-100 transition">Cancel</button>
-            <button type="submit" id="submitBtn" class="w-2/3 bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-black transition">Publish Plate</button>
+          <div class="pt-3 flex space-x-3">
+            <button type="button" onclick="closePostModal()"
+                    class="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs transition">
+              Cancel
+            </button>
+            <button type="submit" id="submitBtn"
+                    class="w-2/3 bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-black py-3 rounded-xl text-xs uppercase tracking-wider transition transform active:scale-95 shadow-md">
+              Publish Plate
+            </button>
           </div>
         </form>
       </div>
@@ -397,7 +524,6 @@
     const plateForm = document.getElementById('platePostForm');
     const modalOverlay = document.getElementById('postModalOverlay');
 
-    // --- TAB SWITCHER FOR AUTH ---
     function switchAuthTab(tab) {
       const loginForm = document.getElementById('formLogin');
       const signupForm = document.getElementById('formSignup');
@@ -409,17 +535,16 @@
       if (tab === 'login') {
         loginForm.classList.remove('hidden');
         signupForm.classList.add('hidden');
-        tabLogin.className = "py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition font-extrabold";
-        tabSignup.className = "py-3.5 border-b-2 border-transparent hover:text-gray-900 transition";
+        tabLogin.className = "py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition font-bold";
+        tabSignup.className = "py-3.5 border-b-2 border-transparent hover:text-slate-800 transition font-bold";
       } else {
         signupForm.classList.remove('hidden');
         loginForm.classList.add('hidden');
-        tabSignup.className = "py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition font-extrabold";
-        tabLogin.className = "py-3.5 border-b-2 border-transparent hover:text-gray-900 transition";
+        tabSignup.className = "py-3.5 border-b-2 border-rose-600 text-rose-600 bg-white transition font-bold";
+        tabLogin.className = "py-3.5 border-b-2 border-transparent hover:text-slate-800 transition font-bold";
       }
     }
 
-    // --- ACCORDION COMMENTS TOGGLE ---
     function toggleComments(plateId) {
       const drawer = document.getElementById(`comments-drawer-${plateId}`);
       const arrow = document.getElementById(`comment-arrow-${plateId}`);
@@ -435,7 +560,6 @@
       }
     }
 
-    // --- MODAL CONTROLS ---
     function openPostModal() {
       if (modalOverlay) {
         modalOverlay.classList.remove('hidden');
@@ -462,7 +586,6 @@
       }
     });
 
-    // --- DISCOVERY GPS FILTER & INPUT CLEANUP ---
     function cleanEmptyCoordinates(form) {
       const latField = document.getElementById('feedLat');
       const lonField = document.getElementById('feedLon');
@@ -476,7 +599,7 @@
         alert("Geolocation not supported.");
         return;
       }
-      btn.innerText = "Finding GPS...";
+      btn.innerText = "Finding...";
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const latField = document.getElementById('feedLat');
@@ -489,8 +612,8 @@
           document.getElementById('discoveryForm').submit();
         },
         (err) => {
-          alert("Could not retrieve GPS location.");
-          btn.innerText = "📍 Use My GPS";
+          alert("Location request timed out or was denied.");
+          btn.innerHTML = "<span>📍</span><span>Near Me</span>";
         }
       );
     }
@@ -500,7 +623,7 @@
       if (fields) fields.style.display = checkbox.checked ? 'none' : 'block';
     }
 
-    // --- PHOTO EDITOR LOGIC ---
+    // Photo Canvas Processing
     if (fileInput) {
       fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -555,7 +678,7 @@
         e.preventDefault();
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.disabled = true;
-        submitBtn.innerText = "Exporting Edited Photo...";
+        submitBtn.innerText = "Exporting photo...";
 
         canvas.toBlob((blob) => {
           const editedFile = new File([blob], "edited_plate.jpg", { type: "image/jpeg" });
@@ -568,7 +691,7 @@
       });
     }
 
-    // --- GOOGLE PLACES MODAL LOOKUPS ---
+    // Google Places Search
     function locateRestaurantGPS() {
       const btn = document.getElementById('postLocBtn');
       if (!navigator.geolocation) return;
@@ -586,14 +709,14 @@
             const data = await res.json();
             populateDropdown(data);
           } catch (err) {
-            alert("Network error fetching restaurants.");
+            alert("Error fetching nearby spots.");
           } finally {
-            btn.innerHTML = "<span>📍 Find Near Me</span>";
+            btn.innerHTML = "<span>📍 Nearby Spots</span>";
           }
         },
         (err) => {
-          alert("Location timed out or denied.");
-          btn.innerHTML = "<span>📍 Find Near Me</span>";
+          alert("Location timed out.");
+          btn.innerHTML = "<span>📍 Nearby Spots</span>";
         }
       );
     }
@@ -610,7 +733,7 @@
         const data = await res.json();
         populateDropdown(data);
       } catch (err) {
-        alert("Search error connecting to server.");
+        alert("Search error.");
       } finally {
         btn.innerText = "Search";
       }
@@ -620,7 +743,7 @@
       fetchedRestaurants = items;
       const select = document.getElementById('restaurantSelect');
       const container = document.getElementById('resultsContainer');
-      select.innerHTML = '<option value="">-- Choose from results (' + items.length + ' found) --</option>';
+      select.innerHTML = '<option value="">-- Choose match (' + items.length + ' found) --</option>';
 
       if (!items || items.length === 0) {
         alert("No restaurants found.");
