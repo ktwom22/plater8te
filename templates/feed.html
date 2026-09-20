@@ -88,15 +88,15 @@
 
   <main class="max-w-xl mx-auto p-4 space-y-4 pt-4">
 
-    <!-- Category Pill Strip -->
+    <!-- Category Pill Strip (Preserves user_lat and user_lon) -->
     <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
-      <a href="/?{% if food_query %}food_query={{ food_query }}&{% endif %}{% if location_query %}location_query={{ location_query }}&{% endif %}{% if user_lat %}user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}"
+      <a href="/?{% if user_lat %}user_lat={{ user_lat }}&user_lon={{ user_lon }}&{% endif %}{% if location_query %}location_query={{ location_query }}&{% endif %}{% if food_query %}food_query={{ food_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center space-x-1.5 {% if not selected_category %}bg-slate-900 text-white shadow-sm{% else %}bg-white text-slate-600 hover:bg-slate-100 border border-slate-200{% endif %}">
         <span>✨ All</span>
       </a>
 
       {% for cat in categories %}
-      <a href="/?category={{ cat.name }}{% if food_query %}&food_query={{ food_query }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}"
+      <a href="/?category={{ cat.name }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center space-x-1.5 {% if selected_category == cat.name %}bg-rose-600 text-white shadow-md border-transparent{% else %}bg-white text-slate-700 hover:bg-slate-100 border border-slate-200{% endif %}">
         <span>{{ cat.icon }}</span>
         <span>{{ cat.name }}</span>
@@ -106,10 +106,10 @@
 
     <!-- Discovery Search / Radar Bar -->
     <div class="plate-card p-4 rounded-3xl space-y-3">
-      <form id="discoveryForm" action="/" method="get" onsubmit="cleanEmptyCoordinates(this)" class="space-y-2.5">
+      <form id="discoveryForm" action="/" method="get" class="space-y-2.5">
         <div class="flex space-x-2">
           <div class="relative flex-1">
-            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Dish or craving..."
+            <input type="text" name="food_query" value="{{ food_query }}" placeholder="Dish or craving (e.g. Tacos)..."
                    class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl text-xs text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
           <div class="relative flex-1">
@@ -125,15 +125,15 @@
         <input type="hidden" name="user_lon" id="feedLon" value="{{ user_lon if user_lon else '' }}">
 
         <div class="flex items-center justify-between pt-1">
-          <button type="button" onclick="searchNearMeGPS()" id="gpsBtn"
+          <button type="button" onclick="triggerDeviceLocation()" id="gpsBtn"
                   class="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200/80 px-3 py-1.5 rounded-xl hover:bg-rose-100 transition flex items-center space-x-1.5">
             <span>📍</span>
-            <span>Near Me</span>
+            <span id="gpsBtnText">{% if user_lat %}GPS Locked (Refresh){% else %}Use My GPS{% endif %}</span>
           </button>
 
           <div class="flex items-center space-x-2">
             {% if food_query or location_query or user_lat or selected_category %}
-              <a href="/" class="text-xs text-slate-400 hover:text-slate-700 underline mr-1">Reset all</a>
+              <button type="button" onclick="clearLocationFilter()" class="text-xs text-slate-400 hover:text-slate-700 underline mr-1">Reset</button>
             {% endif %}
             <button type="submit" class="bg-slate-900 hover:bg-black text-white text-xs font-black px-4 py-2 rounded-xl transition transform active:scale-95 shadow-sm">
               Search Food & Spots
@@ -143,6 +143,14 @@
       </form>
     </div>
 
+    <!-- Active Location Banner -->
+    {% if user_lat and user_lon %}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-2xl text-xs flex items-center justify-between font-semibold">
+      <span>📍 Using your precise location for spots & distance</span>
+      <button type="button" onclick="clearLocationFilter()" class="text-[11px] text-emerald-700 underline font-bold">Clear</button>
+    </div>
+    {% endif %}
+
     <!-- ================= ROULETTE / RANDOMIZER TRIGGER CARD ================= -->
     <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 rounded-3xl p-4 text-white flex items-center justify-between roulette-glow">
       <div class="space-y-0.5">
@@ -151,7 +159,7 @@
           <h3 class="font-black text-sm tracking-tight">Can't Decide What to Eat?</h3>
         </div>
         <p id="rouletteSubtext" class="text-[11px] text-indigo-100 font-medium">
-          Spin to pick from local plates and top restaurants.
+          Spin to pick from local plates and top restaurants in your area.
         </p>
       </div>
       <button type="button" onclick="startRouletteSpin()"
@@ -244,7 +252,7 @@
           <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
             <span>✨ {{ area_label }}</span>
           </h2>
-          <p class="text-[11px] text-slate-500 font-medium">Curated local spots (no fast food chains). View menus or be the first to rate a dish.</p>
+          <p class="text-[11px] text-slate-500 font-medium">Independent spots in your immediate area (no drive-thru chains).</p>
         </div>
       </div>
 
@@ -269,8 +277,8 @@
                 {% endif %}
 
                 {% if spot.distance_miles is not none %}
-                  <span class="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                    {{ spot.distance_miles }} mi away
+                  <span class="text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                    📍 {{ spot.distance_miles }} mi away
                   </span>
                 {% endif %}
               </div>
@@ -308,8 +316,8 @@
 
       {% if not plates %}
         <div class="plate-card p-8 rounded-3xl text-center space-y-2 border-dashed">
-          <p class="font-bold text-slate-600 text-sm">No dishes posted in this area yet!</p>
-          <p class="text-xs text-slate-400">Pick any spot from the list above or hit the button to log the very first plate.</p>
+          <p class="font-bold text-slate-600 text-sm">No community dishes posted in this area yet!</p>
+          <p class="text-xs text-slate-400">Spin the roulette or pick any spot above to log the very first dish.</p>
         </div>
       {% endif %}
 
@@ -482,22 +490,20 @@
         <button type="button" onclick="closeRouletteModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none p-1">&times;</button>
       </div>
 
-      <!-- Shuffling / Result Display Box -->
       <div id="rouletteDisplayCard" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 min-h-[190px] flex flex-col justify-center items-center">
         <div id="rouletteSpinnerEmoji" class="text-4xl animate-bounce">🎰</div>
         <h4 id="rouletteTitle" class="text-lg font-black text-slate-900 leading-snug">
-          Spinning the local options...
+          Spinning options...
         </h4>
         <p id="rouletteSubtitle" class="text-xs text-slate-500 font-medium">
-          Selecting from the best plates and spots in your view.
+          Selecting from the best plates and spots in your immediate area.
         </p>
       </div>
 
-      <!-- Winning Action Links (Visible once spin completes) -->
       <div id="rouletteActions" class="hidden flex space-x-2.5">
         <a id="rouletteLink" href="#" target="_blank" rel="noopener noreferrer"
            class="flex-1 bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-xl text-xs transition">
-          View Details & Menu ↗
+          View Menu / Spot ↗
         </a>
         <button type="button" onclick="startRouletteSpin()"
                 class="flex-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold py-3 rounded-xl text-xs border border-indigo-200 transition">
@@ -665,9 +671,8 @@
   </div>
   {% endif %}
 
-  <!-- ================= INLINE DATA PAYLOADS FOR ROULETTE ================= -->
+  <!-- ================= CLIENT SCRIPTS ================= -->
   <script>
-    // Ingest loaded plates and discovered restaurants directly from Jinja context
     const currentPlates = [
       {% for p in plates %}
       {
@@ -697,13 +702,75 @@
       {% endfor %}
     ];
 
-    // --- ROULETTE RANDOMIZER ENGINE ---
+    // --- AUTO-DETECT GEOLOCATION ON FIRST LOAD ---
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasLat = urlParams.get('user_lat');
+      const hasLocQuery = urlParams.get('location_query');
+
+      // If user has not searched an address AND we don't have lat/lon in URL yet:
+      if (!hasLat && !hasLocQuery) {
+        // Check if cached in sessionStorage to prevent prompt loops
+        const cachedLat = sessionStorage.getItem('pr_lat');
+        const cachedLon = sessionStorage.getItem('pr_lon');
+
+        if (cachedLat && cachedLon) {
+          applyLocationAndReload(cachedLat, cachedLon);
+        } else if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              sessionStorage.setItem('pr_lat', pos.coords.latitude);
+              sessionStorage.setItem('pr_lon', pos.coords.longitude);
+              applyLocationAndReload(pos.coords.latitude, pos.coords.longitude);
+            },
+            (err) => {
+              console.log("[Geo] Location prompt dismissed or unavailable:", err.message);
+            },
+            { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }
+          );
+        }
+      }
+    });
+
+    function applyLocationAndReload(lat, lon) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('user_lat', lat);
+      url.searchParams.set('user_lon', lon);
+      url.searchParams.delete('location_query');
+      window.location.href = url.toString();
+    }
+
+    function triggerDeviceLocation() {
+      const btnText = document.getElementById('gpsBtnText');
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+      }
+      btnText.innerText = "Finding GPS...";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          sessionStorage.setItem('pr_lat', pos.coords.latitude);
+          sessionStorage.setItem('pr_lon', pos.coords.longitude);
+          applyLocationAndReload(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => {
+          alert("Could not access device location. Please make sure location permissions are allowed in your browser settings.");
+          btnText.innerText = "Use My GPS";
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function clearLocationFilter() {
+      sessionStorage.removeItem('pr_lat');
+      sessionStorage.removeItem('pr_lon');
+      window.location.href = "/";
+    }
+
+    // --- ROULETTE / RANDOMIZER ENGINE ---
     let rouletteTimer = null;
 
     function startRouletteSpin() {
-      // Rule Evaluation:
-      // If 10 or more community plates exist in current view, draw exclusively from plates.
-      // If fewer than 10 plates exist, pool community plates with local non-chain restaurant cards.
       let candidates = [];
       let modeLabel = "";
 
@@ -712,11 +779,11 @@
         modeLabel = `🎲 Randomizing ${candidates.length} Local Plates`;
       } else {
         candidates = [...currentPlates, ...currentRestaurants];
-        modeLabel = `🎲 Randomizing ${candidates.length} Plates & Spots`;
+        modeLabel = `🎲 Randomizing ${candidates.length} Spots & Plates`;
       }
 
       if (candidates.length === 0) {
-        alert("No restaurants or plates found in this area yet. Use 'Near Me' or search a city first!");
+        alert("No restaurants or plates found in this area yet. Click 'Use My GPS' or search your city!");
         return;
       }
 
@@ -733,7 +800,7 @@
       emoji.classList.add('slot-animate');
 
       let counter = 0;
-      const totalSteps = 22;
+      const totalSteps = 20;
       clearInterval(rouletteTimer);
 
       rouletteTimer = setInterval(() => {
@@ -749,7 +816,6 @@
           emoji.classList.remove('slot-animate');
           emoji.innerText = "🎉";
 
-          // Final selected winner
           const winner = candidates[Math.floor(Math.random() * candidates.length)];
 
           if (winner.type === 'plate') {
@@ -761,17 +827,17 @@
           }
 
           const linkBtn = document.getElementById('rouletteLink');
-          if (winner.url && winner.url !== '#') {
+          if (winner.url && winner.url !== '#' && winner.url !== '') {
             linkBtn.href = winner.url;
             linkBtn.classList.remove('hidden');
-            linkBtn.innerText = winner.type === 'plate' ? "View Spot & Menu ↗" : "View Website & Menu ↗";
+            linkBtn.innerText = winner.type === 'plate' ? "View Plate & Spot ↗" : "View Website & Menu ↗";
           } else {
             linkBtn.classList.add('hidden');
           }
 
           actions.classList.remove('hidden');
         }
-      }, 80);
+      }, 75);
     }
 
     function closeRouletteModal() {
@@ -779,19 +845,7 @@
       document.getElementById('rouletteModalOverlay').classList.add('hidden');
     }
 
-    // Update subtitle banner based on count
-    document.addEventListener('DOMContentLoaded', () => {
-      const banner = document.getElementById('rouletteSubtext');
-      if (banner) {
-        if (currentPlates.length >= 10) {
-          banner.innerText = `Spin among ${currentPlates.length} community plates rated in this area.`;
-        } else {
-          banner.innerText = `Spin across ${currentPlates.length} plates + ${currentRestaurants.length} local curated spots.`;
-        }
-      }
-    });
-
-    // --- STANDARD MODAL, PHOTO CANVAS & PLACES JS ---
+    // Modal, Canvas, and Image Editor code
     let fetchedRestaurants = [];
     let originalImg = new Image();
     let isImageLoaded = false;
@@ -874,38 +928,6 @@
       document.getElementById('restaurantWebsite').value = (website && website !== 'None') ? website : "";
       if (lat && lat !== 'None') document.getElementById('latField').value = lat;
       if (lon && lon !== 'None') document.getElementById('lonField').value = lon;
-    }
-
-    function cleanEmptyCoordinates(form) {
-      const latField = document.getElementById('feedLat');
-      const lonField = document.getElementById('feedLon');
-      if (!latField.value) latField.disabled = true;
-      if (!lonField.value) lonField.disabled = true;
-    }
-
-    function searchNearMeGPS() {
-      const btn = document.getElementById('gpsBtn');
-      if (!navigator.geolocation) {
-        alert("Geolocation not supported.");
-        return;
-      }
-      btn.innerText = "Finding...";
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const latField = document.getElementById('feedLat');
-          const lonField = document.getElementById('feedLon');
-          latField.disabled = false;
-          lonField.disabled = false;
-          latField.value = pos.coords.latitude;
-          lonField.value = pos.coords.longitude;
-          document.getElementById('locInput').value = "";
-          document.getElementById('discoveryForm').submit();
-        },
-        (err) => {
-          alert("Location request timed out or was denied.");
-          btn.innerHTML = "<span>📍</span><span>Near Me</span>";
-        }
-      );
     }
 
     function toggleRatingFields(checkbox) {
