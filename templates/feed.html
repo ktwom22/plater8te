@@ -20,8 +20,12 @@
   <meta name="description" content="Find the best plates and hidden dining gems near you. No chain fast-food drive-thrus. Explore honest, dish-by-dish community ratings, menu links, and Plate Roulette.">
   <meta name="keywords" content="food discovery, local restaurant ratings, dish ratings, food reviews, non-chain restaurants, best burgers near me, best pizza, foodie community, restaurant roulette, PlateRate">
   <meta name="author" content="PlateRate">
-  <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://r8theplate.com/">
+
+  <!-- Search Engine & AI Crawler Directives (AISEO) -->
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large">
 
   <!-- Open Graph / Facebook / WhatsApp / iMessage Previews -->
   <meta property="og:type" content="website">
@@ -40,16 +44,16 @@
   <meta name="twitter:description" content="Find the best local dishes, skip the fast-food chains, and read real dish reviews from your community.">
   <meta name="twitter:image" content="https://r8theplate.com/static/og-preview.jpg">
 
-  <!-- Mobile & PWA Theme Colors -->
+  <!-- Mobile Theme Colors -->
   <meta name="theme-color" content="#f8fafc">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PlateRate">
 
-  <!-- Favicons -->
+  <!-- Favicon -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>">
 
-  <!-- Google Structured Data (JSON-LD) for Search Rich Snippets -->
+  <!-- Structured Data: WebApplication -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -64,6 +68,32 @@
       "price": "0",
       "priceCurrency": "USD"
     }
+  }
+  </script>
+
+  <!-- Structured Data: FAQPage for AI Search Engines (ChatGPT, Claude, Perplexity) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is PlateRate?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "PlateRate is an independent food discovery and rating platform where users review specific dishes rather than just entire restaurants, strictly filtering out national fast-food chains."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does Plate Roulette work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Plate Roulette helps indecisive diners by picking a meal at random from top-rated community plates or independent restaurants within a 5-mile radius."
+        }
+      }
+    ]
   }
   </script>
 
@@ -161,7 +191,7 @@
 
   <main class="max-w-xl mx-auto p-4 space-y-4 pt-4">
 
-    <!-- Category Pill Strip -->
+    <!-- Category Carousel -->
     <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
       <a href="/?{% if user_lat %}user_lat={{ user_lat }}&user_lon={{ user_lon }}&{% endif %}{% if location_query %}location_query={{ location_query }}&{% endif %}{% if food_query %}food_query={{ food_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center space-x-1.5 {% if not selected_category %}bg-slate-900 text-white shadow-sm{% else %}bg-white text-slate-600 hover:bg-slate-100 border border-slate-200{% endif %}">
@@ -216,7 +246,7 @@
       </form>
     </div>
 
-    <!-- Active Location Banner -->
+    <!-- Active GPS Notification -->
     {% if user_lat and user_lon %}
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-2xl text-xs flex items-center justify-between font-semibold">
       <span>📍 Centered on your device GPS (within 5 miles)</span>
@@ -676,7 +706,7 @@
               </button>
             </div>
 
-            <!-- Restaurant Details (Filled via search or entered manually) -->
+            <!-- Restaurant Details -->
             <div id="restaurantFields" class="space-y-2 pt-2 border-t border-slate-200">
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Restaurant Name</label>

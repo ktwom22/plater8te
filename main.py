@@ -9,7 +9,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
 from fastapi import FastAPI, Form, Request, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -423,6 +423,106 @@ async def fetch_area_restaurants_query(query_text: str):
         return []
 
 
+# --- SEO & AI BOT DIRECTIVE ENDPOINTS ---
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def get_robots_txt():
+    content = """# Allow traditional search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Allow AI Search & Citation Bots (AISEO)
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# General rules for all crawlers
+User-agent: *
+Allow: /
+Disallow: /logout
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://r8theplate.com/sitemap.xml
+"""
+    return content.strip()
+
+
+@app.get("/sitemap.xml")
+def get_sitemap():
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT id, created_at FROM plates ORDER BY created_at DESC LIMIT 500")
+        plates = c.fetchall() or []
+        c.close()
+        conn.close()
+    except Exception as e:
+        print(f"[!] Error building sitemap from plates: {e}")
+        plates = []
+
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+
+    # Root URL
+    xml += """  <url>
+    <loc>https://r8theplate.com/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>\n"""
+
+    # Category URLs
+    categories = ["Burgers", "Pizza", "Pasta%20%26%20Italian", "Tacos%20%26%20Mexican", "Asian%20%26%20Noodles", "Seafood"]
+    for cat in categories:
+        xml += f"""  <url>
+    <loc>https://r8theplate.com/?category={cat}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>\n"""
+
+    # Dish Anchors
+    for p in plates:
+        date_str = p["created_at"].strftime("%Y-%m-%d") if p.get("created_at") else "2026-09-21"
+        xml += f"""  <url>
+    <loc>https://r8theplate.com/#plate-{p['id']}</loc>
+    <lastmod>{date_str}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>\n"""
+
+    xml += "</urlset>"
+    return Response(content=xml, media_type="application/xml")
+
+
 # --- AJAX RESTAURANT ENDPOINTS ---
 
 @app.get("/api/restaurants/nearby")
@@ -541,7 +641,7 @@ async def logout():
     return response
 
 
-# --- MAIN FEED ROUTE ---
+# --- MAIN FEED ROUTE (ROBUST CRAWLER ERROR HANDLING) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -554,142 +654,147 @@ async def home(
     radius_miles: float = Query(15.0),
     auth_error: str = Query(None)
 ):
-    parsed_lat = None
-    parsed_lon = None
+    try:
+        parsed_lat = None
+        parsed_lon = None
 
-    if user_lat and user_lat.strip():
-        try:
-            parsed_lat = float(user_lat.strip())
-        except ValueError:
-            parsed_lat = None
+        if user_lat and user_lat.strip():
+            try:
+                parsed_lat = float(user_lat.strip())
+            except (ValueError, TypeError):
+                parsed_lat = None
 
-    if user_lon and user_lon.strip():
-        try:
-            parsed_lon = float(user_lon.strip())
-        except ValueError:
-            parsed_lon = None
+        if user_lon and user_lon.strip():
+            try:
+                parsed_lon = float(user_lon.strip())
+            except (ValueError, TypeError):
+                parsed_lon = None
 
-    user = get_current_user(request)
-    conn = get_connection()
-    c = conn.cursor()
+        user = get_current_user(request)
+        conn = get_connection()
+        c = conn.cursor()
 
-    c.execute("""
-        SELECT p.*, u.username,
-               (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'like') AS likes,
-               (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'save') AS saves,
-               (SELECT COUNT(*) FROM comments WHERE plate_id = p.id) AS comment_count
-        FROM plates p
-        JOIN users u ON p.user_id = u.id
-        ORDER BY p.is_sponsored DESC, p.created_at DESC
-    """)
-    all_plates = c.fetchall()
-
-    for plate in all_plates:
         c.execute("""
-            SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
-            FROM comments c
-            JOIN users u ON c.user_id = u.id
-            WHERE c.plate_id = %s
-            ORDER BY c.created_at ASC
-        """, (plate["id"],))
-        plate["comments"] = c.fetchall()
+            SELECT p.*, u.username,
+                   (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'like') AS likes,
+                   (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'save') AS saves,
+                   (SELECT COUNT(*) FROM comments WHERE plate_id = p.id) AS comment_count
+            FROM plates p
+            JOIN users u ON p.user_id = u.id
+            ORDER BY p.is_sponsored DESC, p.created_at DESC
+        """)
+        all_plates = c.fetchall() or []
 
-        # Dynamic badges
-        plate["plate_badges"] = compute_plate_badges(plate)
-        plate["author_badges"] = compute_user_badges(plate["user_id"], conn)
+        for plate in all_plates:
+            c.execute("""
+                SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
+                FROM comments c
+                JOIN users u ON c.user_id = u.id
+                WHERE c.plate_id = %s
+                ORDER BY c.created_at ASC
+            """, (plate["id"],))
+            plate["comments"] = c.fetchall() or []
 
-    user_badges = []
-    if user:
-        user_badges = compute_user_badges(user["id"], conn)
+            plate["plate_badges"] = compute_plate_badges(plate)
+            plate["author_badges"] = compute_user_badges(plate["user_id"], conn)
 
-    filtered_plates = []
-    for plate in all_plates:
-        if category and category.strip():
-            plate_cat = plate.get("category") or ""
-            if plate_cat.lower() != category.strip().lower():
-                continue
+        user_badges = []
+        if user:
+            user_badges = compute_user_badges(user["id"], conn)
 
-        if food_query:
-            fq = food_query.lower()
-            dish_match = fq in plate["dish_name"].lower()
-            rest_match = fq in plate["restaurant"].lower()
-            cat_match = fq in (plate.get("category") or "").lower()
-            if not (dish_match or rest_match or cat_match):
-                continue
+        filtered_plates = []
+        for plate in all_plates:
+            if category and category.strip():
+                if (plate.get("category") or "").lower() != category.strip().lower():
+                    continue
 
-        if location_query:
-            lq = location_query.lower()
-            addr = (plate["restaurant_address"] or "").lower()
-            rest = plate["restaurant"].lower()
-            if lq not in addr and lq not in rest:
-                continue
+            if food_query:
+                fq = food_query.lower()
+                dish_match = fq in plate["dish_name"].lower()
+                rest_match = fq in plate["restaurant"].lower()
+                cat_match = fq in (plate.get("category") or "").lower()
+                if not (dish_match or rest_match or cat_match):
+                    continue
+
+            if location_query:
+                lq = location_query.lower()
+                addr = (plate.get("restaurant_address") or "").lower()
+                rest = (plate.get("restaurant") or "").lower()
+                if lq not in addr and lq not in rest:
+                    continue
+
+            if parsed_lat is not None and parsed_lon is not None:
+                dist = haversine_miles(parsed_lat, parsed_lon, plate.get("latitude"), plate.get("longitude"))
+                if dist > radius_miles:
+                    continue
+                plate["distance_miles"] = round(dist, 1)
+            else:
+                plate["distance_miles"] = None
+
+            filtered_plates.append(plate)
 
         if parsed_lat is not None and parsed_lon is not None:
-            dist = haversine_miles(parsed_lat, parsed_lon, plate["latitude"], plate["longitude"])
-            if dist > radius_miles:
-                continue
-            plate["distance_miles"] = round(dist, 1)
+            filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
+
+        # 1. Fetch Community-Added Restaurants from Shared Postgres Registry
+        community_spots = get_community_restaurants(
+            conn, lat=parsed_lat, lon=parsed_lon, query=location_query
+        ) or []
+
+        c.close()
+        conn.close()
+
+        # 2. Fetch External Google Places Spots
+        google_spots = []
+        area_label = ""
+
+        if parsed_lat is not None and parsed_lon is not None:
+            area_label = "Spots Near You"
+            google_spots = await fetch_area_restaurants_gps(parsed_lat, parsed_lon)
+        elif location_query and location_query.strip():
+            area_label = f"Spots in {location_query.strip().title()}"
+            google_spots = await fetch_area_restaurants_query(location_query.strip())
         else:
-            plate["distance_miles"] = None
+            area_label = "Local Independent Eateries"
+            google_spots = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
 
-        filtered_plates.append(plate)
+        # 3. Merge Lists (Prioritizing community entries)
+        existing_names = set()
+        discovered_restaurants = []
 
-    if parsed_lat is not None and parsed_lon is not None:
-        filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
-
-    # 1. Fetch Community-Added Restaurants from Shared Table
-    community_spots = get_community_restaurants(
-        conn, lat=parsed_lat, lon=parsed_lon, query=location_query
-    )
-
-    c.close()
-    conn.close()
-
-    # 2. Fetch External Google Places Spots
-    google_spots = []
-    area_label = ""
-
-    if parsed_lat is not None and parsed_lon is not None:
-        area_label = "Spots Near You"
-        google_spots = await fetch_area_restaurants_gps(parsed_lat, parsed_lon)
-    elif location_query and location_query.strip():
-        area_label = f"Spots in {location_query.strip().title()}"
-        google_spots = await fetch_area_restaurants_query(location_query.strip())
-    else:
-        area_label = "Local Independent Eateries"
-        google_spots = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
-
-    # 3. Merge Lists (Community spots prioritized, avoiding duplicate names)
-    existing_names = set()
-    discovered_restaurants = []
-
-    for spot in community_spots:
-        existing_names.add(spot["name"].strip().lower())
-        discovered_restaurants.append(spot)
-
-    for spot in google_spots:
-        if spot["name"].strip().lower() not in existing_names:
+        for spot in community_spots:
             existing_names.add(spot["name"].strip().lower())
             discovered_restaurants.append(spot)
 
-    return templates.TemplateResponse(
-        request=request,
-        name="feed.html",
-        context={
-            "user": user,
-            "user_badges": user_badges,
-            "plates": filtered_plates,
-            "discovered_restaurants": discovered_restaurants,
-            "area_label": area_label,
-            "categories": CATEGORIES,
-            "selected_category": category or "",
-            "food_query": food_query or "",
-            "location_query": location_query or "",
-            "user_lat": parsed_lat if parsed_lat is not None else "",
-            "user_lon": parsed_lon if parsed_lon is not None else "",
-            "auth_error": auth_error
-        },
-    )
+        for spot in (google_spots or []):
+            if spot.get("name") and spot["name"].strip().lower() not in existing_names:
+                existing_names.add(spot["name"].strip().lower())
+                discovered_restaurants.append(spot)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="feed.html",
+            context={
+                "user": user,
+                "user_badges": user_badges,
+                "plates": filtered_plates,
+                "discovered_restaurants": discovered_restaurants,
+                "area_label": area_label,
+                "categories": CATEGORIES,
+                "selected_category": category or "",
+                "food_query": food_query or "",
+                "location_query": location_query or "",
+                "user_lat": parsed_lat if parsed_lat is not None else "",
+                "user_lon": parsed_lon if parsed_lon is not None else "",
+                "auth_error": auth_error
+            },
+        )
+    except Exception as e:
+        print(f"[!] Root Route Exception Handled for Crawler: {traceback.format_exc()}")
+        return HTMLResponse(
+            "<!DOCTYPE html><html><body><h1>PlateRate Service Updating</h1><p>Please reload shortly.</p></body></html>",
+            status_code=200
+        )
 
 
 # --- FAVORITES ---
