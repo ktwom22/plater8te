@@ -172,9 +172,9 @@
             <a href="/logout" class="text-xs text-slate-400 hover:text-rose-600 font-semibold ml-1">Exit</a>
           </div>
         {% else %}
-          <a href="#auth" class="text-xs font-bold text-slate-700 hover:text-slate-900 px-2 py-1">
+          <button type="button" onclick="openAuthModal()" class="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full border border-slate-200 transition">
             Sign In
-          </a>
+          </button>
         {% endif %}
       </div>
     </div>
@@ -430,38 +430,6 @@
       {% endfor %}
     </div>
 
-    <!-- Guest Sign-in Box (Placed discreetly at the bottom of the feed) -->
-    {% if not user %}
-    <div id="auth" class="bg-white border border-slate-200 rounded-3xl p-5 space-y-3 mt-8 scroll-mt-20">
-      {% if auth_error %}
-      <div class="bg-rose-50 border border-rose-200 p-2 rounded-xl text-center">
-        <p class="text-xs font-bold text-rose-700">⚠️ {{ auth_error }}</p>
-      </div>
-      {% endif %}
-
-      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-        <div class="flex space-x-4 text-xs font-extrabold">
-          <button type="button" onclick="switchAuthTab('login')" id="tabBtnLogin" class="text-rose-600 border-b-2 border-rose-600 pb-1">Log In</button>
-          <button type="button" onclick="switchAuthTab('signup')" id="tabBtnSignup" class="text-slate-400 hover:text-slate-700 pb-1">Register</button>
-        </div>
-        <span class="text-[11px] text-slate-400">Earn food critic badges</span>
-      </div>
-
-      <form id="formLogin" action="/login" method="post" class="space-y-2.5">
-        <input type="text" name="identifier" required placeholder="Username or email" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-slate-900 outline-none focus:bg-white">
-        <input type="password" name="password" required placeholder="Password" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-slate-900 outline-none focus:bg-white">
-        <button type="submit" class="w-full bg-slate-900 hover:bg-black text-white font-bold py-2 rounded-xl text-xs transition">Sign In</button>
-      </form>
-
-      <form id="formSignup" action="/signup" method="post" class="space-y-2.5 hidden">
-        <input type="text" name="username" required placeholder="Choose username" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-slate-900 outline-none focus:bg-white">
-        <input type="email" name="email" required placeholder="Email" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-slate-900 outline-none focus:bg-white">
-        <input type="password" name="password" minlength="6" required placeholder="Password (min 6 characters)" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-slate-900 outline-none focus:bg-white">
-        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl text-xs transition">Create Account</button>
-      </form>
-    </div>
-    {% endif %}
-
   </main>
 
   <!-- Sticky Mobile FAB -->
@@ -470,6 +438,47 @@
     <span class="text-base leading-none">+</span>
     <span class="text-xs uppercase tracking-wider">Post Plate</span>
   </button>
+
+  <!-- ================= POPUP AUTH MODAL ================= -->
+  <div id="authModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <div class="flex space-x-4 text-xs font-extrabold">
+          <button type="button" onclick="switchAuthTab('login')" id="tabBtnLogin" class="text-rose-600 border-b-2 border-rose-600 pb-1">Log In</button>
+          <button type="button" onclick="switchAuthTab('signup')" id="tabBtnSignup" class="text-slate-400 hover:text-slate-700 pb-1">Register</button>
+        </div>
+        <button type="button" onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold p-1">&times;</button>
+      </div>
+
+      <form id="formLogin" action="/login" method="post" class="space-y-3">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Username or Email</label>
+          <input type="text" name="identifier" required placeholder="foodie_sam" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Password</label>
+          <input type="password" name="password" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+        </div>
+        <button type="submit" class="w-full bg-slate-900 hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs transition">Sign In</button>
+      </form>
+
+      <form id="formSignup" action="/signup" method="post" class="space-y-3 hidden">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Choose Username</label>
+          <input type="text" name="username" required placeholder="e.g. pastafiend" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+          <input type="email" name="email" required placeholder="you@domain.com" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Password</label>
+          <input type="password" name="password" minlength="6" required placeholder="Min 6 characters" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+        </div>
+        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Create Account & Earn Badges</button>
+      </form>
+    </div>
+  </div>
 
   <!-- ================= ROULETTE / RANDOMIZER MODAL ================= -->
   <div id="rouletteModalOverlay" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md hidden flex items-center justify-center p-4">
@@ -527,9 +536,9 @@
             <span class="text-base">👤</span>
             <p>Posting as <strong>@anonymous</strong>.</p>
           </div>
-          <a href="#auth" onclick="closePostModal()" class="text-[11px] font-bold text-indigo-700 underline">
+          <button type="button" onclick="closePostModal(); openAuthModal();" class="text-[11px] font-bold text-indigo-700 underline">
             Sign in for badges
-          </a>
+          </button>
         </div>
         {% endif %}
 
@@ -797,6 +806,38 @@
       window.location.href = "/";
     }
 
+    // --- POPUP AUTH MODAL CONTROLS ---
+    function openAuthModal() {
+      document.getElementById('authModal').classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('authModal').classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function switchAuthTab(tab) {
+      const loginForm = document.getElementById('formLogin');
+      const signupForm = document.getElementById('formSignup');
+      const tabLogin = document.getElementById('tabBtnLogin');
+      const tabSignup = document.getElementById('tabBtnSignup');
+
+      if (!loginForm || !signupForm) return;
+
+      if (tab === 'login') {
+        loginForm.classList.remove('hidden');
+        signupForm.classList.add('hidden');
+        tabLogin.className = "text-rose-600 border-b-2 border-rose-600 pb-1";
+        tabSignup.className = "text-slate-400 hover:text-slate-700 pb-1";
+      } else {
+        signupForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+        tabSignup.className = "text-rose-600 border-b-2 border-rose-600 pb-1";
+        tabLogin.className = "text-slate-400 hover:text-slate-700 pb-1";
+      }
+    }
+
     // --- MANUAL RESTAURANT TOGGLE ---
     function toggleManualRestaurant() {
       const drawer = document.getElementById('restaurantFields');
@@ -954,27 +995,6 @@
     const plateForm = document.getElementById('platePostForm');
     const modalOverlay = document.getElementById('postModalOverlay');
 
-    function switchAuthTab(tab) {
-      const loginForm = document.getElementById('formLogin');
-      const signupForm = document.getElementById('formSignup');
-      const tabLogin = document.getElementById('tabBtnLogin');
-      const tabSignup = document.getElementById('tabBtnSignup');
-
-      if (!loginForm || !signupForm) return;
-
-      if (tab === 'login') {
-        loginForm.classList.remove('hidden');
-        signupForm.classList.add('hidden');
-        tabLogin.className = "text-rose-600 border-b-2 border-rose-600 pb-1";
-        tabSignup.className = "text-slate-400 hover:text-slate-700 pb-1";
-      } else {
-        signupForm.classList.remove('hidden');
-        loginForm.classList.add('hidden');
-        tabSignup.className = "text-rose-600 border-b-2 border-rose-600 pb-1";
-        tabLogin.className = "text-slate-400 hover:text-slate-700 pb-1";
-      }
-    }
-
     function toggleComments(plateId) {
       const drawer = document.getElementById(`comments-drawer-${plateId}`);
       if (!drawer) return;
@@ -1001,10 +1021,18 @@
       });
     }
 
+    const authModalOverlay = document.getElementById('authModal');
+    if (authModalOverlay) {
+      authModalOverlay.addEventListener('click', function(e) {
+        if (e.target === authModalOverlay) closeAuthModal();
+      });
+    }
+
     window.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         closePostModal();
         closeRouletteModal();
+        closeAuthModal();
       }
     });
 
