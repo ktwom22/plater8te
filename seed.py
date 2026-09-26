@@ -1,6 +1,6 @@
 """
-seed.py - Seeds initial verified critics, independent restaurants, and plates.
-Execute: python seed.py
+seed.py - Seeds users, restaurants, plates, duels, and trails.
+Run: python seed.py
 """
 import os
 import psycopg2
@@ -66,6 +66,16 @@ SAMPLE_PLATES = [
     },
     {
         "author_index": 1,
+        "rest_index": 4,
+        "dish_name": "Crispy Bistro Fried Chicken Sandwich",
+        "category": "Burgers",
+        "rating": 9,
+        "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Spicy mayo has a nice kick, incredibly crispy."]
+    },
+    {
+        "author_index": 1,
         "rest_index": 1,
         "dish_name": "Hot Honey Pepperoni Brick-Oven Slice",
         "category": "Pizza",
@@ -93,26 +103,6 @@ SAMPLE_PLATES = [
         "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?auto=format&fit=crop&w=800&q=80",
         "comments": ["Rich sauce, perfectly pillowy naan."]
-    },
-    {
-        "author_index": 1,
-        "rest_index": 4,
-        "dish_name": "Crispy Bistro Fried Chicken Sandwich",
-        "category": "Burgers",
-        "rating": 8,
-        "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Spicy mayo has a nice kick."]
-    },
-    {
-        "author_index": None,
-        "rest_index": 0,
-        "dish_name": "Crispy Garlic Parmesan Fries",
-        "category": "Other",
-        "rating": 8,
-        "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Huge portion and actually crunchy."]
     }
 ]
 
@@ -145,7 +135,8 @@ def run_seed():
         """, (r["name"], r["address"], r["website"], r["latitude"], r["longitude"], user_ids[0]))
         rest_ids.append(c.fetchone()["id"])
 
-    print("[*] Seeding plates & comments...")
+    print("[*] Seeding plates...")
+    plate_ids = []
     for p in SAMPLE_PLATES:
         author_id = user_ids[p["author_index"]] if p["author_index"] is not None else None
         rest = SAMPLE_RESTAURANTS[p["rest_index"]]
@@ -154,7 +145,9 @@ def run_seed():
         c.execute("SELECT id FROM plates WHERE dish_name = %s AND restaurant = %s", (p["dish_name"], rest["name"]))
         existing = c.fetchone()
 
-        if not existing:
+        if existing:
+            plate_ids.append(existing["id"])
+        else:
             c.execute("""
                 INSERT INTO plates (
                     user_id, restaurant_id, dish_name, restaurant, category, 
@@ -167,25 +160,42 @@ def run_seed():
                 rest["address"], rest["website"], rest["latitude"], rest["longitude"],
                 p["photo_url"], p["rating"], p["reorder"]
             ))
-            plate_id = c.fetchone()["id"]
+            pid = c.fetchone()["id"]
+            plate_ids.append(pid)
 
             for comment_text in p["comments"]:
-                c.execute("""
-                    INSERT INTO comments (user_id, plate_id, comment)
-                    VALUES (%s, %s, %s)
-                """, (author_id, plate_id, comment_text))
+                c.execute("INSERT INTO comments (user_id, plate_id, comment) VALUES (%s, %s, %s)", (author_id, pid, comment_text))
 
-            if author_id:
-                c.execute("""
-                    INSERT INTO interactions (user_id, plate_id, type)
-                    VALUES (%s, %s, 'like')
-                    ON CONFLICT DO NOTHING
-                """, (author_id, plate_id))
+    print("[*] Seeding Plate Duel of the Week...")
+    if len(plate_ids) >= 2:
+        c.execute("SELECT id FROM duels WHERE is_active = TRUE")
+        if not c.fetchone():
+            c.execute("""
+                INSERT INTO duels (title, plate_a_id, plate_b_id, votes_a, votes_b, is_active)
+                VALUES (%s, %s, %s, 14, 11, TRUE)
+            """, ("Smash Burger Clash: Bad Brgr vs. Lexie's Joint", plate_ids[0], plate_ids[1]))
+
+    print("[*] Seeding Foodie Trails...")
+    c.execute("SELECT id FROM trails WHERE slug = 'seacoast-burger-trail'")
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO trails (title, slug, description, badge_reward)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """, (
+            "The Seacoast Smash Tour",
+            "seacoast-burger-trail",
+            "Conquer the 3 most iconic independent smash burgers across Rochester and Portsmouth.",
+            "Burger Baron 🍔"
+        ))
+        trail_id = c.fetchone()["id"]
+        c.execute("INSERT INTO trail_items (trail_id, plate_id, order_index) VALUES (%s, %s, 1)", (trail_id, plate_ids[0]))
+        c.execute("INSERT INTO trail_items (trail_id, plate_id, order_index) VALUES (%s, %s, 2)", (trail_id, plate_ids[1]))
 
     conn.commit()
     c.close()
     conn.close()
-    print("[✓] Database seeded successfully.")
+    print("[✓] All 5 growth engines seeded successfully.")
 
 
 if __name__ == "__main__":
