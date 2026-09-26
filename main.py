@@ -2,14 +2,15 @@ import math
 import os
 import shutil
 import traceback
+import secrets
 from datetime import datetime
 from pathlib import Path
 import httpx
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-from fastapi import FastAPI, Form, Request, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse, Response
+from fastapi import FastAPI, Form, Request, UploadFile, File, Query, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -39,7 +40,6 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# Curated food categories
 CATEGORIES = [
     {"name": "Burgers", "icon": "🍔"},
     {"name": "Pizza", "icon": "🍕"},
@@ -54,9 +54,7 @@ CATEGORIES = [
     {"name": "Other", "icon": "🍽️"}
 ]
 
-# Chains, gas stations, vape shops, and non-dining venues to discard
 NON_RESTAURANT_BLOCKLIST = {
-    # Fast Food & National Drive-Thrus
     "mcdonald's", "mcdonalds", "burger king", "wendy's", "wendys", "taco bell",
     "subway", "kfc", "kentucky fried chicken", "pizza hut", "domino's", "dominos",
     "papa john's", "papa johns", "little caesars", "popeyes", "chick-fil-a", "chick fil a",
@@ -67,16 +65,10 @@ NON_RESTAURANT_BLOCKLIST = {
     "wingstop", "raising cane's", "raising canes", "culver's", "culvers", "white castle",
     "whataburger", "checkers", "rally's", "del taco", "church's chicken",
     "panera bread", "tim hortons", "baskin-robbins", "firehouse subs",
-
-    # Gas Stations & Convenience Stores
     "nouria", "cumberland farms", "cumby's", "circle k", "7-eleven", "7 eleven",
     "irving", "mobil", "exxon", "shell", "citgo", "bp", "sunoco", "speedway",
     "wawa", "sheetz", "casey's", "gulf", "gas station", "convenience", "mini mart", "mart",
-
-    # Smoke, Vape & Retail
     "smoke", "vape", "tobacco", "cbd", "dispensary", "beverage", "liquor", "package store",
-
-    # Spiritual / Retreats / Non-dining
     "spiritual", "retreat", "renewal", "church", "center for", "ecological"
 }
 
@@ -91,7 +83,6 @@ def is_invalid_spot(name: str, types: list = None) -> bool:
     for bad in NON_RESTAURANT_BLOCKLIST:
         if bad in name_lower:
             return True
-
     if types:
         for t in types:
             if t.lower() in EXCLUDED_TYPES or "fast_food" in t.lower():
@@ -111,8 +102,7 @@ def get_current_user(request: Request):
         c.close()
         conn.close()
         return user
-    except Exception as e:
-        print(f"[!] Error fetching user: {e}")
+    except Exception:
         return None
 
 
@@ -132,7 +122,6 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 def compute_user_badges(user_id: int, conn) -> list:
     if not user_id:
         return []
-
     c = conn.cursor()
     badges = []
 
@@ -168,25 +157,12 @@ def compute_user_badges(user_id: int, conn) -> list:
             badges.append({"label": "Tough Room", "icon": "🎯", "color": "bg-red-50 text-red-700 border-red-200"})
 
     if tens_count >= 2:
-        badges.append({"label": "Perfectionist", "icon": "💯", "color": "bg-emerald-50 text-emerald-700 border-emerald-200"})
+        badges.append(
+            {"label": "Perfectionist", "icon": "💯", "color": "bg-emerald-50 text-emerald-700 border-emerald-200"})
 
     if total_plates >= 5 and photo_count == total_plates:
-        badges.append({"label": "Visual Storyteller", "icon": "📸", "color": "bg-cyan-50 text-cyan-700 border-cyan-200"})
-
-    c.execute("""
-        SELECT COUNT(cm.id) AS comments_received
-        FROM plates p
-        JOIN comments cm ON p.id = cm.plate_id
-        WHERE p.user_id = %s
-    """, (user_id,))
-    comments_received = c.fetchone()["comments_received"] or 0
-    if comments_received >= 15:
-        badges.append({"label": "Conversation Starter", "icon": "💬", "color": "bg-sky-50 text-sky-700 border-sky-200"})
-
-    c.execute("SELECT COUNT(*) AS total_saves FROM interactions WHERE user_id = %s AND type = 'save'", (user_id,))
-    saves_count = c.fetchone()["total_saves"] or 0
-    if saves_count >= 10:
-        badges.append({"label": "Trophy Vault", "icon": "🔖", "color": "bg-violet-50 text-violet-700 border-violet-200"})
+        badges.append(
+            {"label": "Visual Storyteller", "icon": "📸", "color": "bg-cyan-50 text-cyan-700 border-cyan-200"})
 
     c.execute("""
         SELECT category, COUNT(*) as cat_count
@@ -227,17 +203,20 @@ def compute_plate_badges(plate: dict) -> list:
     reorder = plate.get("reorder") or ""
 
     if rating == 10 and reorder == "Hell yes":
-        badges.append({"label": "God Tier", "icon": "👑", "color": "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm"})
+        badges.append({"label": "God Tier", "icon": "👑",
+                       "color": "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm"})
     elif rating and rating >= 9.0:
         badges.append({"label": "Diamond Pick", "icon": "💎", "color": "bg-blue-50 text-blue-800 border-blue-200"})
 
     if likes >= 15:
-        badges.append({"label": "Viral Plate", "icon": "💥", "color": "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200"})
+        badges.append(
+            {"label": "Viral Plate", "icon": "💥", "color": "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200"})
     elif likes >= 5:
         badges.append({"label": "Crowd Favorite", "icon": "🔥", "color": "bg-rose-50 text-rose-700 border-rose-200"})
 
     if comments >= 6:
-        badges.append({"label": "Town Square", "icon": "🗣️", "color": "bg-indigo-50 text-indigo-700 border-indigo-200"})
+        badges.append(
+            {"label": "Town Square", "icon": "🗣️", "color": "bg-indigo-50 text-indigo-700 border-indigo-200"})
     elif comments >= 2:
         badges.append({"label": "Buzzing", "icon": "💬", "color": "bg-sky-50 text-sky-700 border-sky-200"})
 
@@ -246,7 +225,8 @@ def compute_plate_badges(plate: dict) -> list:
         badges.append({"label": "Must-Try", "icon": "🔖", "color": "bg-purple-50 text-purple-700 border-purple-200"})
 
     if rating and rating >= 8.5 and likes < 2:
-        badges.append({"label": "Hidden Gem", "icon": "⚡", "color": "bg-emerald-50 text-emerald-800 border-emerald-200"})
+        badges.append(
+            {"label": "Hidden Gem", "icon": "⚡", "color": "bg-emerald-50 text-emerald-800 border-emerald-200"})
 
     if reorder == "Hell yes" and not any(b["label"] == "God Tier" for b in badges):
         badges.append({"label": "Hell Yes", "icon": "🔥", "color": "bg-emerald-50 text-emerald-700 border-emerald-200"})
@@ -330,7 +310,6 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
         async with httpx.AsyncClient(timeout=9.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
             if resp.status_code != 200:
-                print(f"[!] Google Places Nearby Error {resp.status_code}: {resp.text}")
                 return []
             data = resp.json()
             spots = []
@@ -355,8 +334,7 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
                 })
             spots.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 9999)
             return spots
-    except Exception as e:
-        print(f"[!] Exception during Google Places Nearby: {e}")
+    except Exception:
         return []
 
 
@@ -379,7 +357,6 @@ async def fetch_area_restaurants_query(query_text: str):
         async with httpx.AsyncClient(timeout=9.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
             if resp.status_code != 200:
-                print(f"[!] Google Places Text Error {resp.status_code}: {resp.text}")
                 return []
             data = resp.json()
             spots = []
@@ -400,8 +377,7 @@ async def fetch_area_restaurants_query(query_text: str):
                     "is_community_added": False
                 })
             return spots
-    except Exception as e:
-        print(f"[!] Exception during Google Places Text Search: {e}")
+    except Exception:
         return []
 
 
@@ -409,14 +385,12 @@ async def fetch_area_restaurants_query(query_text: str):
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def get_robots_txt():
-    content = """# Allow traditional search engines
-User-agent: Googlebot
+    content = """User-agent: Googlebot
 Allow: /
 
 User-agent: Bingbot
 Allow: /
 
-# Allow AI Search & Citation Bots (AISEO)
 User-agent: OAI-SearchBot
 Allow: /
 
@@ -447,13 +421,11 @@ Allow: /
 User-agent: Applebot-Extended
 Allow: /
 
-# General rules for all crawlers
 User-agent: *
 Allow: /
 Disallow: /logout
 Disallow: /api/
 
-# Sitemap location
 Sitemap: https://r8theplate.com/sitemap.xml
 """
     return content.strip()
@@ -468,35 +440,21 @@ def get_sitemap():
         plates = c.fetchall() or []
         c.close()
         conn.close()
-    except Exception as e:
-        print(f"[!] Error building sitemap: {e}")
+    except Exception:
         plates = []
 
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += "  <url><loc>https://r8theplate.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n"
 
-    xml += """  <url>
-    <loc>https://r8theplate.com/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>\n"""
-
-    categories = ["Burgers", "Pizza", "Pasta%20%26%20Italian", "Tacos%20%26%20Mexican", "Asian%20%26%20Noodles", "Seafood"]
+    categories = ["Burgers", "Pizza", "Pasta%20%26%20Italian", "Tacos%20%26%20Mexican", "Asian%20%26%20Noodles",
+                  "Seafood"]
     for cat in categories:
-        xml += f"""  <url>
-    <loc>https://r8theplate.com/?category={cat}</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>\n"""
+        xml += f"  <url><loc>https://r8theplate.com/?category={cat}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n"
 
     for p in plates:
         date_str = p["created_at"].strftime("%Y-%m-%d") if p.get("created_at") else "2026-09-25"
-        xml += f"""  <url>
-    <loc>https://r8theplate.com/#plate-{p['id']}</loc>
-    <lastmod>{date_str}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>\n"""
+        xml += f"  <url><loc>https://r8theplate.com/#plate-{p['id']}</loc><lastmod>{date_str}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>\n"
 
     xml += "</urlset>"
     return Response(content=xml, media_type="application/xml")
@@ -516,14 +474,63 @@ async def search_restaurants(query: str = Query(...)):
     return JSONResponse(results)
 
 
+# --- PLATE DUEL VOTING API ---
+
+@app.post("/api/duels/vote")
+async def vote_duel(request: Request, duel_id: int = Form(...), choice: str = Form(...)):
+    # Persistent voter token cookie to prevent spam
+    voter_token = request.cookies.get("voter_token")
+    new_token = False
+    if not voter_token:
+        voter_token = secrets.token_hex(16)
+        new_token = True
+
+    choice_clean = choice.upper()
+    if choice_clean not in ["A", "B"]:
+        return JSONResponse({"error": "Invalid choice"}, status_code=400)
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT voter_token FROM duel_votes WHERE duel_id = %s AND voter_token = %s", (duel_id, voter_token))
+    already_voted = c.fetchone()
+
+    if already_voted:
+        c.close()
+        conn.close()
+        return JSONResponse({"status": "already_voted", "message": "You've already cast your vote for this duel!"})
+
+    c.execute("INSERT INTO duel_votes (duel_id, voter_token, choice) VALUES (%s, %s, %s)",
+              (duel_id, voter_token, choice_clean))
+    if choice_clean == "A":
+        c.execute("UPDATE duels SET votes_a = votes_a + 1 WHERE id = %s RETURNING votes_a, votes_b", (duel_id,))
+    else:
+        c.execute("UPDATE duels SET votes_b = votes_b + 1 WHERE id = %s RETURNING votes_a, votes_b", (duel_id,))
+
+    updated = c.fetchone()
+    conn.commit()
+    c.close()
+    conn.close()
+
+    total = (updated["votes_a"] or 0) + (updated["votes_b"] or 0)
+    pct_a = round(((updated["votes_a"] or 0) / total) * 100) if total > 0 else 50
+    pct_b = 100 - pct_a
+
+    response = JSONResponse(
+        {"status": "success", "votes_a": updated["votes_a"], "votes_b": updated["votes_b"], "pct_a": pct_a,
+         "pct_b": pct_b})
+    if new_token:
+        response.set_cookie(key="voter_token", value=voter_token, max_age=31536000, httponly=True)
+    return response
+
+
 # --- AUTHENTICATION ROUTES ---
 
 @app.post("/signup")
 async def signup(
-    request: Request,
-    username: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...)
+        request: Request,
+        username: str = Form(...),
+        email: str = Form(...),
+        password: str = Form(...)
 ):
     clean_user = username.strip().lower()
     clean_email = email.strip().lower()
@@ -542,7 +549,8 @@ async def signup(
         c.execute("SELECT username, email FROM users WHERE username = %s OR email = %s", (clean_user, clean_email))
         conflict = c.fetchone()
         if conflict:
-            err_msg = "Username is already taken." if conflict["username"] == clean_user else "Email is already registered."
+            err_msg = "Username is already taken." if conflict[
+                                                          "username"] == clean_user else "Email is already registered."
             return RedirectResponse(url=f"/?auth_error={err_msg}#auth", status_code=303)
 
         c.execute("""
@@ -552,9 +560,8 @@ async def signup(
         """, (clean_user, clean_email, pwd_hash))
         new_id = c.fetchone()["id"]
         conn.commit()
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        print(f"[!] Signup error: {e}")
         return RedirectResponse(url="/?auth_error=An error occurred creating your account.#auth", status_code=303)
     finally:
         c.close()
@@ -576,9 +583,9 @@ async def signup(
 
 @app.post("/login")
 async def login(
-    request: Request,
-    identifier: str = Form(...),
-    password: str = Form(...)
+        request: Request,
+        identifier: str = Form(...),
+        password: str = Form(...)
 ):
     clean_id = identifier.strip().lower()
     clean_pass = password.strip()
@@ -620,19 +627,79 @@ async def logout():
     return response
 
 
-# --- MAIN FEED ROUTE (NEARBY-FIRST WITH AUTOMATIC GLOBAL FALLBACK) ---
+# --- RESTAURANT QR LANDING PAGE (GROWTH ENGINE 5) ---
+
+@app.get("/r/{restaurant_id}", response_class=HTMLResponse)
+async def restaurant_qr_page(restaurant_id: int, request: Request):
+    user = get_current_user(request)
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM restaurants WHERE id = %s", (restaurant_id,))
+    spot = c.fetchone()
+
+    if not spot:
+        c.close()
+        conn.close()
+        return RedirectResponse(url="/", status_code=303)
+
+    c.execute("""
+        SELECT p.*, COALESCE(u.username, 'anonymous') as username,
+               (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'like') AS likes,
+               (SELECT COUNT(*) FROM comments WHERE plate_id = p.id) AS comment_count
+        FROM plates p
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.restaurant_id = %s
+        ORDER BY p.rating DESC NULLS LAST, p.created_at DESC
+    """, (restaurant_id,))
+    dishes = c.fetchall() or []
+
+    for d in dishes:
+        d["plate_badges"] = compute_plate_badges(d)
+
+    c.close()
+    conn.close()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="feed.html",
+        context={
+            "user": user,
+            "user_badges": [],
+            "plates": dishes,
+            "discovered_restaurants": [spot],
+            "area_label": f"Dishes at {spot['name']}",
+            "categories": CATEGORIES,
+            "selected_category": "",
+            "food_query": "",
+            "location_query": "",
+            "user_lat": spot.get("latitude") or "",
+            "user_lon": spot.get("longitude") or "",
+            "scope": "all",
+            "is_fallback": False,
+            "auth_error": None,
+            "active_duel": None,
+            "top_critics": [],
+            "pioneers_left": 25,
+            "active_trails": [],
+            "qr_spot": spot
+        }
+    )
+
+
+# --- MAIN FEED ROUTE (INTEGRATES ALL 5 ENGINES) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
-    request: Request,
-    food_query: str = Query(None),
-    location_query: str = Query(None),
-    category: str = Query(None),
-    user_lat: str = Query(None),
-    user_lon: str = Query(None),
-    radius_miles: float = Query(15.0),
-    scope: str = Query("nearby"),
-    auth_error: str = Query(None)
+        request: Request,
+        food_query: str = Query(None),
+        location_query: str = Query(None),
+        category: str = Query(None),
+        user_lat: str = Query(None),
+        user_lon: str = Query(None),
+        radius_miles: float = Query(15.0),
+        scope: str = Query("nearby"),
+        auth_error: str = Query(None)
 ):
     try:
         parsed_lat = None
@@ -654,6 +721,48 @@ async def home(
         conn = get_connection()
         c = conn.cursor()
 
+        # Engine 1: Plate Duel of the Week
+        c.execute("""
+            SELECT d.*, 
+                   pa.dish_name as plate_a_dish, pa.restaurant as plate_a_restaurant, pa.photo_url as plate_a_photo, pa.rating as plate_a_rating,
+                   pb.dish_name as plate_b_dish, pb.restaurant as plate_b_restaurant, pb.photo_url as plate_b_photo, pb.rating as plate_b_rating
+            FROM duels d
+            JOIN plates pa ON d.plate_a_id = pa.id
+            JOIN plates pb ON d.plate_b_id = pb.id
+            WHERE d.is_active = TRUE
+            ORDER BY d.created_at DESC
+            LIMIT 1
+        """)
+        active_duel_row = c.fetchone()
+        active_duel = None
+        if active_duel_row:
+            total_votes = (active_duel_row["votes_a"] or 0) + (active_duel_row["votes_b"] or 0)
+            pct_a = round(((active_duel_row["votes_a"] or 0) / total_votes) * 100) if total_votes > 0 else 50
+            pct_b = 100 - pct_a
+            active_duel = dict(active_duel_row)
+            active_duel["pct_a"] = pct_a
+            active_duel["pct_b"] = pct_b
+
+        # Engine 3: Pioneer & Critics Leaderboard
+        c.execute("SELECT COUNT(*) AS total_critics FROM users")
+        critics_count = c.fetchone()["total_critics"] or 0
+        pioneers_left = max(0, 25 - critics_count)
+
+        c.execute("""
+            SELECT u.id, u.username, COUNT(p.id) as plate_count, AVG(p.rating) as avg_rating
+            FROM users u
+            JOIN plates p ON u.id = p.user_id
+            GROUP BY u.id
+            ORDER BY plate_count DESC, avg_rating DESC
+            LIMIT 5
+        """)
+        top_critics = c.fetchall() or []
+
+        # Engine 4: Active Food Trails
+        c.execute("SELECT * FROM trails ORDER BY id ASC")
+        active_trails = c.fetchall() or []
+
+        # Plates Query
         c.execute("""
             SELECT p.*, 
                    COALESCE(u.username, 'anonymous') AS username,
@@ -690,7 +799,7 @@ async def home(
         if user:
             user_badges = compute_user_badges(user["id"], conn)
 
-        # Base Filters: Category, Food Query, and Location Text Query
+        # Baseline category and text filtering
         base_filtered = []
         for plate in all_plates:
             if category and category.strip():
@@ -714,7 +823,7 @@ async def home(
 
             base_filtered.append(plate)
 
-        # Proximity Logic: Show nearby dishes, or gracefully fallback to all dishes
+        # Proximity Logic: Nearby-first with graceful fallback
         is_fallback = False
         final_plates = []
 
@@ -785,13 +894,18 @@ async def home(
                 "user_lon": parsed_lon if parsed_lon is not None else "",
                 "scope": scope,
                 "is_fallback": is_fallback,
-                "auth_error": auth_error
+                "auth_error": auth_error,
+                "active_duel": active_duel,
+                "top_critics": top_critics,
+                "pioneers_left": pioneers_left,
+                "active_trails": active_trails,
+                "qr_spot": None
             },
         )
     except Exception as e:
         print(f"[!] Root Route Exception: {traceback.format_exc()}")
         return HTMLResponse(
-            "<!DOCTYPE html><html><body><h1>PlateRate Service Updating</h1><p>Please reload shortly.</p></body></html>",
+            "<!DOCTYPE html><html><body><h1>PlateRate Updating</h1><p>Please refresh in a moment.</p></body></html>",
             status_code=200
         )
 
@@ -882,23 +996,23 @@ async def my_plates_page(request: Request):
     )
 
 
-# --- CREATE PLATE (ALLOWS ANONYMOUS POSTING) ---
+# --- CREATE PLATE (PERSISTS TO REGISTRY) ---
 
 @app.post("/plates")
 async def create_plate(
-    request: Request,
-    dish_name: str = Form(...),
-    restaurant: str = Form(...),
-    category: str = Form("Other"),
-    restaurant_address: str = Form(""),
-    restaurant_website: str = Form(""),
-    latitude: str = Form(None),
-    longitude: str = Form(None),
-    skip_rating: str = Form(None),
-    rating: int = Form(None),
-    reorder: str = Form(None),
-    photo: UploadFile = File(None),
-    guest_email: str = Form(None)
+        request: Request,
+        dish_name: str = Form(...),
+        restaurant: str = Form(...),
+        category: str = Form("Other"),
+        restaurant_address: str = Form(""),
+        restaurant_website: str = Form(""),
+        latitude: str = Form(None),
+        longitude: str = Form(None),
+        skip_rating: str = Form(None),
+        rating: int = Form(None),
+        reorder: str = Form(None),
+        photo: UploadFile = File(None),
+        guest_email: str = Form(None)
 ):
     user = get_current_user(request)
     author_id = user["id"] if user else None
@@ -976,7 +1090,7 @@ async def create_plate(
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/#auth", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
@@ -1000,8 +1114,6 @@ async def interact_plate(plate_id: int, action_type: str = Form(...), request: R
     referer = request.headers.get("referer") or "/"
     return RedirectResponse(url=referer, status_code=303)
 
-
-# --- COMMENTS (ALLOWS ANONYMOUS COMMENTING) ---
 
 @app.post("/plates/{plate_id}/comments")
 async def add_comment(plate_id: int, comment: str = Form(...), request: Request = None):
@@ -1046,10 +1158,10 @@ async def rate_plate_page(plate_id: int, request: Request):
 
 @app.post("/plates/{plate_id}/rate")
 async def submit_delayed_rating(
-    plate_id: int,
-    rating: int = Form(...),
-    reorder: str = Form(...),
-    redirect_to: str = Form("/my-plates")
+        plate_id: int,
+        rating: int = Form(...),
+        reorder: str = Form(...),
+        redirect_to: str = Form("/my-plates")
 ):
     conn = get_connection()
     c = conn.cursor()
@@ -1065,5 +1177,6 @@ async def submit_delayed_rating(
 
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

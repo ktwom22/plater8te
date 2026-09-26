@@ -51,7 +51,7 @@ def init_db():
     );
     """)
 
-    # Plates Table (Allows NULL user_id for anonymous posters)
+    # Plates Table
     c.execute("""
     CREATE TABLE IF NOT EXISTS plates (
         id SERIAL PRIMARY KEY,
@@ -83,7 +83,7 @@ def init_db():
     );
     """)
 
-    # Comments Table (Allows NULL user_id for anonymous commenters)
+    # Comments Table
     c.execute("""
     CREATE TABLE IF NOT EXISTS comments (
         id SERIAL PRIMARY KEY,
@@ -94,27 +94,57 @@ def init_db():
     );
     """)
 
-    # Safe Migrations: Add columns and drop NOT NULL constraints for anonymous support
+    # Plate Duels
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS duels (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        plate_a_id INTEGER REFERENCES plates(id) ON DELETE CASCADE,
+        plate_b_id INTEGER REFERENCES plates(id) ON DELETE CASCADE,
+        votes_a INTEGER DEFAULT 0,
+        votes_b INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # Duel Votes (fingerprint/cookie tracking to prevent duplicate voting)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS duel_votes (
+        id SERIAL PRIMARY KEY,
+        duel_id INTEGER REFERENCES duels(id) ON DELETE CASCADE,
+        voter_token VARCHAR(255) NOT NULL,
+        choice VARCHAR(1) NOT NULL,
+        UNIQUE(duel_id, voter_token)
+    );
+    """)
+
+    # Plate Trails / Hit Lists
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS trails (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        description TEXT,
+        badge_reward VARCHAR(100) DEFAULT 'Trailblazer 🥾',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS trail_items (
+        id SERIAL PRIMARY KEY,
+        trail_id INTEGER REFERENCES trails(id) ON DELETE CASCADE,
+        plate_id INTEGER REFERENCES plates(id) ON DELETE CASCADE,
+        order_index INTEGER DEFAULT 0,
+        UNIQUE(trail_id, plate_id)
+    );
+    """)
+
+    # Safe Migrations
     c.execute("""
         DO $$
         BEGIN
-            -- Ensure category exists
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name='plates' AND column_name='category'
-            ) THEN
-                ALTER TABLE plates ADD COLUMN category VARCHAR(100);
-            END IF;
-
-            -- Ensure restaurant_id exists
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name='plates' AND column_name='restaurant_id'
-            ) THEN
-                ALTER TABLE plates ADD COLUMN restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL;
-            END IF;
-
-            -- Allow plates.user_id to be NULL for anonymous posting
             IF EXISTS (
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name='plates' AND column_name='user_id' AND is_nullable='NO'
@@ -122,7 +152,6 @@ def init_db():
                 ALTER TABLE plates ALTER COLUMN user_id DROP NOT NULL;
             END IF;
 
-            -- Allow comments.user_id to be NULL for anonymous commenting
             IF EXISTS (
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name='comments' AND column_name='user_id' AND is_nullable='NO'
@@ -135,7 +164,7 @@ def init_db():
     conn.commit()
     c.close()
     conn.close()
-    print("[Postgres] Database initialized with anonymous posting support and shared restaurant registry.")
+    print("[Postgres] Database initialized with growth engines (Duels, Trails, Anonymous, Registry).")
 
 
 if __name__ == "__main__":

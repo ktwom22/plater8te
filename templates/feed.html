@@ -17,100 +17,34 @@
   <!-- Primary SEO Meta Tags -->
   <title>PlateRate — Discover & Rate Local Dishes | Honest Food Reviews</title>
   <meta name="title" content="PlateRate — Discover & Rate Local Dishes | Honest Food Reviews">
-  <meta name="description" content="Find the best plates and hidden dining gems near you. No chain fast-food drive-thrus. Explore honest, dish-by-dish community ratings, menu links, and Plate Roulette.">
-  <meta name="keywords" content="food discovery, local restaurant ratings, dish ratings, food reviews, non-chain restaurants, best burgers near me, best pizza, foodie community, restaurant roulette, PlateRate">
-  <meta name="author" content="PlateRate">
+  <meta name="description" content="Find the best plates and hidden dining gems near you. No chain fast-food drive-thrus. Vote in the Plate Duel, spin Roulette, and browse community dish reviews.">
+  <meta name="keywords" content="food discovery, local restaurant ratings, dish ratings, food reviews, smash burgers, local foodies, food duels, PlateRate">
   <link rel="canonical" href="https://r8theplate.com/">
 
-  <!-- Search Engine & AI Crawler Directives (AISEO) -->
+  <!-- Search Engine Directives -->
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large">
-  <meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large">
 
-  <!-- Open Graph / Facebook / WhatsApp / iMessage Previews -->
+  <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://r8theplate.com/">
-  <meta property="og:site_name" content="PlateRate">
   <meta property="og:title" content="PlateRate — Rate the Plate, Not Just the Place">
-  <meta property="og:description" content="Discover dishes loved by real locals. Browse independent restaurants, filter by cravings, and let Plate Roulette pick your next meal.">
+  <meta property="og:description" content="Discover dishes loved by real locals. Vote on weekly duels and let Plate Roulette pick your next meal.">
   <meta property="og:image" content="https://r8theplate.com/static/og-preview.jpg">
-  <meta property="og:image:alt" content="PlateRate Food Discovery App">
-  <meta property="og:locale" content="en_US">
-
-  <!-- Twitter Card Previews -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://r8theplate.com/">
-  <meta name="twitter:title" content="PlateRate — Rate the Plate, Not Just the Place">
-  <meta name="twitter:description" content="Find the best local dishes, skip the fast-food chains, and read real dish reviews from your community.">
-  <meta name="twitter:image" content="https://r8theplate.com/static/og-preview.jpg">
-
-  <!-- Mobile Theme Colors -->
-  <meta name="theme-color" content="#fafafa">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="PlateRate">
 
   <!-- Favicon -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>">
 
-  <!-- Structured Data: WebApplication -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "PlateRate",
-    "url": "https://r8theplate.com",
-    "applicationCategory": "LifestyleApplication",
-    "operatingSystem": "All",
-    "description": "A localized food discovery and dish rating platform that highlights independent restaurants and dishes without fast-food chains.",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    }
-  }
-  </script>
-
-  <!-- Structured Data: FAQPage for AI Search Engines -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "What is PlateRate?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "PlateRate is an independent food discovery and rating platform where users review specific dishes rather than just entire restaurants, strictly filtering out national fast-food chains."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "How does Plate Roulette work?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Plate Roulette helps indecisive diners by picking a meal at random from top-rated community plates or independent restaurants within a 5-mile radius."
-        }
-      }
-    ]
-  }
-  </script>
-
-  <!-- Tailwind & Typography -->
+  <!-- Tailwind & Fonts -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <style>
-    body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
     .glass-nav {
       background: rgba(255, 255, 255, 0.94);
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid #f1f5f9;
     }
     .plate-card {
@@ -122,26 +56,19 @@
       background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
       box-shadow: 0 4px 14px 0 rgba(217, 119, 6, 0.35);
     }
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
-    }
-    .no-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     @keyframes spinSlot {
       0% { transform: translateY(0); opacity: 0.3; }
       50% { opacity: 1; }
       100% { transform: translateY(-4px); opacity: 0.3; }
     }
-    .slot-animate {
-      animation: spinSlot 0.09s infinite alternate;
-    }
+    .slot-animate { animation: spinSlot 0.09s infinite alternate; }
   </style>
 </head>
-<body class="bg-[#fafafa] text-slate-900 min-h-screen selection:bg-rose-500 selection:text-white pb-28">
+<body class="bg-[#fafafa] text-slate-900 min-h-screen pb-28">
 
-  <!-- Minimal Sticky Header -->
+  <!-- Sticky Header -->
   <header class="sticky top-0 z-40 glass-nav">
     <div class="max-w-xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2.5">
       <a href="/" class="flex items-center space-x-1.5 shrink-0">
@@ -151,7 +78,7 @@
 
       <!-- Compact Search Bar -->
       <form action="/" method="get" class="flex-grow max-w-xs relative">
-        <input type="text" name="food_query" value="{{ food_query }}" placeholder="Search dishes or craving..."
+        <input type="text" name="food_query" value="{{ food_query }}" placeholder="Search dishes, tacos, burgers..."
                class="w-full bg-slate-100 border border-transparent focus:border-slate-300 focus:bg-white px-3.5 py-1.5 rounded-full text-xs outline-none transition text-slate-900 placeholder-slate-400">
         {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
         {% if location_query %}<input type="hidden" name="location_query" value="{{ location_query }}">{% endif %}
@@ -160,7 +87,7 @@
         <input type="hidden" name="user_lon" id="feedLon" value="{{ user_lon if user_lon else '' }}">
       </form>
 
-      <!-- Action Items -->
+      <!-- Action items -->
       <div class="flex items-center space-x-2 shrink-0">
         <button type="button" onclick="openPostModal()"
                 class="bg-slate-900 hover:bg-black text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm">
@@ -180,12 +107,18 @@
       </div>
     </div>
 
-    <!-- Category Pill Strip with Integrated Pick-For-Me Chip -->
+    <!-- Category Pill Strip with Roulette & Critics Triggers -->
     <div class="max-w-xl mx-auto px-4 pb-2.5 flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
       <button type="button" onclick="startRouletteSpin()"
               class="whitespace-nowrap text-xs font-extrabold px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/80 transition flex items-center space-x-1 shrink-0">
         <span>🎲</span>
         <span>Pick For Me</span>
+      </button>
+
+      <button type="button" onclick="openCriticsModal()"
+              class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/70 transition flex items-center space-x-1 shrink-0">
+        <span>🏆</span>
+        <span>Critics ({{ pioneers_left }} Pioneer Slots)</span>
       </button>
 
       <a href="/?scope={{ scope }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}"
@@ -202,7 +135,6 @@
       {% endfor %}
     </div>
 
-    <!-- Subnav Tabs (if user is authenticated) -->
     {% if user %}
     <nav class="max-w-xl mx-auto px-4 flex space-x-5 text-xs font-bold pb-2 border-t border-slate-100 pt-1.5">
       <a href="/" class="text-rose-600 border-b-2 border-rose-600 pb-1">Feed</a>
@@ -214,15 +146,97 @@
 
   <main class="max-w-xl mx-auto px-4 space-y-4 pt-3">
 
-    <!-- Active Location Banner -->
-    {% if user_lat and user_lon %}
-    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-1.5 rounded-xl text-[11px] flex items-center justify-between font-semibold">
-      <span>📍 Centered on your device GPS (within 15 miles)</span>
-      <button type="button" onclick="clearLocationFilter()" class="underline font-bold text-emerald-700">Clear</button>
+    <!-- Engine 5: Restaurant Table QR Landing Banner -->
+    {% if qr_spot %}
+    <div class="bg-gradient-to-r from-rose-600 to-amber-600 text-white p-4 rounded-3xl space-y-1.5 shadow-md">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">📍</span>
+        <h2 class="font-black text-sm">Welcome to {{ qr_spot.name }}!</h2>
+      </div>
+      <p class="text-xs text-rose-100 font-medium">Eating here right now? Snap your dish, rate the plate in 15 seconds, and help fellow locals find the best food.</p>
+      <button type="button"
+              onclick="prefillPlateModal('{{ qr_spot.name | escape }}', '{{ qr_spot.address | escape }}', '{{ qr_spot.website | escape }}', '{{ qr_spot.latitude }}', '{{ qr_spot.longitude }}')"
+              class="bg-white text-rose-700 font-black px-3.5 py-1.5 rounded-xl text-xs mt-1 hover:bg-rose-50 transition shadow-sm">
+        + Rate Your Meal Here
+      </button>
     </div>
     {% endif %}
 
-    <!-- Discovered Independent Eateries (Streamlined Horizontal Rail) -->
+    <!-- Engine 1: Plate Duel of the Week (Live Single-Tap Voting) -->
+    {% if active_duel %}
+    <div class="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm">
+      <div class="flex justify-between items-center">
+        <span class="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/60">
+          🔥 Plate Duel of the Week
+        </span>
+        <span id="duelTotalVotes" class="text-[11px] text-slate-400 font-bold">
+          {{ (active_duel.votes_a or 0) + (active_duel.votes_b or 0) }} votes
+        </span>
+      </div>
+
+      <h3 class="text-sm font-black text-slate-900">{{ active_duel.title }}</h3>
+
+      <div class="grid grid-cols-2 gap-3 pt-1">
+        <!-- Side A -->
+        <button type="button" onclick="castDuelVote({{ active_duel.id }}, 'A')"
+                class="group text-left border border-slate-200 hover:border-rose-400 rounded-2xl overflow-hidden p-2.5 space-y-2 transition bg-slate-50/50 hover:bg-white">
+          <div class="aspect-video w-full rounded-xl overflow-hidden bg-slate-200 relative">
+            <img src="{{ active_duel.plate_a_photo }}" class="w-full h-full object-cover group-hover:scale-105 transition">
+            <span class="absolute top-1 left-1 bg-black/70 text-white text-[9px] font-black px-1.5 py-0.5 rounded">Option A</span>
+          </div>
+          <div>
+            <h4 class="font-extrabold text-xs text-slate-900 leading-tight truncate">{{ active_duel.plate_a_dish }}</h4>
+            <p class="text-[10px] text-rose-600 font-bold truncate">@ {{ active_duel.plate_a_restaurant }}</p>
+          </div>
+          <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div id="duelBarA" class="bg-rose-600 h-full transition-all duration-500" style="width: {{ active_duel.pct_a }}%"></div>
+          </div>
+          <p id="duelPctA" class="text-right text-[10px] font-extrabold text-slate-700">{{ active_duel.pct_a }}%</p>
+        </button>
+
+        <!-- Side B -->
+        <button type="button" onclick="castDuelVote({{ active_duel.id }}, 'B')"
+                class="group text-left border border-slate-200 hover:border-indigo-400 rounded-2xl overflow-hidden p-2.5 space-y-2 transition bg-slate-50/50 hover:bg-white">
+          <div class="aspect-video w-full rounded-xl overflow-hidden bg-slate-200 relative">
+            <img src="{{ active_duel.plate_b_photo }}" class="w-full h-full object-cover group-hover:scale-105 transition">
+            <span class="absolute top-1 left-1 bg-black/70 text-white text-[9px] font-black px-1.5 py-0.5 rounded">Option B</span>
+          </div>
+          <div>
+            <h4 class="font-extrabold text-xs text-slate-900 leading-tight truncate">{{ active_duel.plate_b_dish }}</h4>
+            <p class="text-[10px] text-indigo-600 font-bold truncate">@ {{ active_duel.plate_b_restaurant }}</p>
+          </div>
+          <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div id="duelBarB" class="bg-indigo-600 h-full transition-all duration-500" style="width: {{ active_duel.pct_b }}%"></div>
+          </div>
+          <p id="duelPctB" class="text-right text-[10px] font-extrabold text-slate-700">{{ active_duel.pct_b }}%</p>
+        </button>
+      </div>
+      <p id="duelStatusMsg" class="text-[11px] text-slate-400 text-center italic"></p>
+    </div>
+    {% endif %}
+
+    <!-- Engine 4: Foodie Hit Lists / Trails -->
+    {% if active_trails %}
+    <div class="space-y-1.5">
+      <div class="flex justify-between items-center px-1">
+        <h2 class="text-xs font-black uppercase tracking-wider text-slate-400">Curated Food Trails</h2>
+      </div>
+      <div class="flex space-x-2.5 overflow-x-auto no-scrollbar pb-1">
+        {% for trail in active_trails %}
+        <div class="bg-white border border-slate-200 rounded-2xl p-3 min-w-[240px] max-w-[240px] space-y-1.5 shrink-0 shadow-sm">
+          <span class="text-[10px] font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
+            {{ trail.badge_reward }}
+          </span>
+          <h4 class="font-extrabold text-xs text-slate-900 leading-tight">{{ trail.title }}</h4>
+          <p class="text-[11px] text-slate-400 line-clamp-2">{{ trail.description }}</p>
+          <a href="/?category=Burgers" class="inline-block text-[11px] font-bold text-rose-600 hover:underline pt-0.5">Explore Trail →</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Discovered Eateries Horizontal Rail -->
     {% if discovered_restaurants %}
     <div class="space-y-2">
       <div class="flex justify-between items-center px-1">
@@ -270,7 +284,7 @@
     </div>
     {% endif %}
 
-    <!-- Fallback Notification (When no dishes exist within 15 miles) -->
+    <!-- Nearby Fallback Alert -->
     {% if is_fallback %}
     <div class="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 flex items-center justify-between">
       <div class="flex items-center space-x-2">
@@ -283,7 +297,7 @@
     </div>
     {% endif %}
 
-    <!-- Feed Header with Scope Filter Toggle -->
+    <!-- Feed Header with Scope Filter -->
     <div class="space-y-4 pt-1">
       <div class="flex justify-between items-center px-1">
         <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">
@@ -296,7 +310,6 @@
           {% endif %}
         </h2>
 
-        <!-- Proximity Scope Toggle -->
         {% if user_lat %}
         <div class="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200/70 text-[11px] font-bold">
           <a href="/?scope=nearby{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
@@ -330,7 +343,7 @@
 
           <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none"></div>
 
-          <!-- Minimal Badge Overlay (Max 1 primary badge) -->
+          <!-- Minimal Badge Overlay -->
           <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 max-w-[75%]">
             {% if plate.plate_badges %}
               <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-sm border backdrop-blur-md {{ plate.plate_badges[0].color }}">
@@ -357,7 +370,7 @@
                 <span>{{ plate.rating }}.0</span>
               </div>
             {% else %}
-              <span class="bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-xl shadow-sm">
+              <span class="bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xl shadow-sm">
                 Unrated
               </span>
             {% endif %}
@@ -403,7 +416,6 @@
           </div>
           {% endif %}
 
-          <!-- Author Info -->
           <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-500">
             <span class="text-[11px]">by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
 
@@ -431,7 +443,6 @@
             </div>
           </div>
 
-          <!-- Comments Drawer -->
           <div id="comments-drawer-{{ plate.id }}" class="hidden pt-2 border-t border-slate-100 space-y-2">
             <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
               {% if not plate.comments %}
@@ -472,7 +483,41 @@
     <span class="text-xs uppercase tracking-wider">Post Plate</span>
   </button>
 
-  <!-- ================= POPUP AUTH MODAL ================= -->
+  <!-- Engine 3: Critics Leaderboard Modal -->
+  <div id="criticsModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <div>
+          <h3 class="font-black text-sm text-slate-900">Foodie Hall of Fame 🏆</h3>
+          <p class="text-[11px] text-slate-400">Only <strong>{{ pioneers_left }}</strong> Pioneer 🚀 critic slots remaining!</p>
+        </div>
+        <button type="button" onclick="closeCriticsModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold p-1">&times;</button>
+      </div>
+
+      <div class="space-y-2">
+        {% for critic in top_critics %}
+        <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="font-black text-slate-400">#{{ loop.index }}</span>
+            <span class="font-bold text-slate-800">@{{ critic.username }}</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="bg-rose-50 text-rose-700 font-extrabold px-2 py-0.5 rounded text-[11px]">{{ critic.plate_count }} plates</span>
+            <span class="text-amber-600 font-bold">★ {{ round(critic.avg_rating, 1) }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="pt-1 text-center">
+        <button type="button" onclick="closeCriticsModal(); openPostModal();" class="text-xs font-black text-rose-600 underline">
+          Log a dish now to claim your critic rank
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popup Auth Modal -->
   <div id="authModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
       <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -508,14 +553,14 @@
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Password</label>
           <input type="password" name="password" minlength="6" required placeholder="Min 6 characters" class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500">
         </div>
-        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Create Account & Earn Badges</button>
+        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Create Account & Claim Pioneer Badge</button>
       </form>
     </div>
   </div>
 
-  <!-- ================= ROULETTE / RANDOMIZER MODAL ================= -->
+  <!-- Engine 2: Roulette Modal with Native SMS/WhatsApp Sharing & Story Export -->
   <div id="rouletteModalOverlay" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="bg-white border border-slate-200 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden text-center p-6 space-y-5 transform transition duration-300">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden text-center p-6 space-y-4 transform transition duration-300">
 
       <div class="flex justify-between items-center border-b border-slate-100 pb-3">
         <span id="rouletteBadge" class="text-[11px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">
@@ -534,13 +579,22 @@
         </p>
       </div>
 
-      <div id="rouletteActions" class="hidden flex space-x-2.5">
-        <a id="rouletteLink" href="#" target="_blank" rel="noopener noreferrer"
-           class="flex-1 bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-xl text-xs transition">
-          View Menu / Spot ↗
-        </a>
+      <div id="rouletteActions" class="hidden space-y-2">
+        <div class="flex space-x-2">
+          <a id="rouletteLink" href="#" target="_blank" rel="noopener noreferrer"
+             class="flex-1 bg-slate-900 hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs transition">
+            View Spot ↗
+          </a>
+          <!-- One-Tap Share to iMessage / WhatsApp -->
+          <button type="button" onclick="shareRoulettePick()"
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center space-x-1">
+            <span>📲</span>
+            <span>Send to Friend</span>
+          </button>
+        </div>
+
         <button type="button" onclick="startRouletteSpin()"
-                class="flex-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold py-3 rounded-xl text-xs border border-indigo-200 transition">
+                class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs transition">
           Spin Again 🎲
         </button>
       </div>
@@ -548,7 +602,7 @@
     </div>
   </div>
 
-  <!-- ================= POST MODAL WITH HIDDEN RESTAURANT DRAWER ================= -->
+  <!-- Post Modal -->
   <div id="postModalOverlay" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
 
@@ -562,7 +616,6 @@
 
       <div class="p-6 overflow-y-auto space-y-4">
 
-        <!-- Anonymous Notice Banner -->
         {% if not user %}
         <div class="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-3 text-xs text-indigo-950 flex items-center justify-between">
           <div class="flex items-center space-x-2">
@@ -593,7 +646,6 @@
             </div>
           </div>
 
-          <!-- Restaurant Selection & Manual Drawer -->
           <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
             <div class="flex items-center justify-between">
               <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Restaurant Search</label>
@@ -620,7 +672,6 @@
               </select>
             </div>
 
-            <!-- Toggle Manual Restaurant Creation Link -->
             <div class="pt-1 text-right">
               <button type="button" onclick="toggleManualRestaurant()" id="toggleManualBtn"
                       class="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline">
@@ -628,7 +679,6 @@
               </button>
             </div>
 
-            <!-- Restaurant Details (HIDDEN BY DEFAULT) -->
             <div id="restaurantFields" class="hidden space-y-2 pt-2 border-t border-slate-200">
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Restaurant Name</label>
@@ -745,8 +795,10 @@
     </div>
   </div>
 
-  <!-- ================= SCRIPTS ================= -->
+  <!-- Scripts -->
   <script>
+    let latestWinningPick = null;
+
     const currentPlates = [
       {% for p in plates %}
       {
@@ -776,6 +828,59 @@
       {% endfor %}
     ];
 
+    // Engine 1: Plate Duel Single-Tap AJAX Voting
+    async function castDuelVote(duelId, choice) {
+      const msg = document.getElementById('duelStatusMsg');
+      msg.innerText = "Submitting vote...";
+
+      const formData = new FormData();
+      formData.append('duel_id', duelId);
+      formData.append('choice', choice);
+
+      try {
+        const res = await fetch('/api/duels/vote', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.status === 'already_voted') {
+          msg.innerText = "✓ You have already voted in this duel!";
+        } else {
+          document.getElementById('duelBarA').style.width = data.pct_a + '%';
+          document.getElementById('duelBarB').style.width = data.pct_b + '%';
+          document.getElementById('duelPctA').innerText = data.pct_a + '%';
+          document.getElementById('duelPctB').innerText = data.pct_b + '%';
+          document.getElementById('duelTotalVotes').innerText = (data.votes_a + data.votes_b) + ' votes';
+          msg.innerText = "🎉 Vote recorded! Thanks for weighing in.";
+        }
+      } catch (err) {
+        msg.innerText = "Could not record vote.";
+      }
+    }
+
+    // Engine 2: One-Tap SMS/WhatsApp/Story Sharing for Roulette
+    async function shareRoulettePick() {
+      if (!latestWinningPick) return;
+
+      const shareText = `PlateRate picked our meal! ${latestWinningPick.title} at ${latestWinningPick.restaurant} (Rated ★ ${latestWinningPick.rating || 9}/10).`;
+      const shareUrl = window.location.origin;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'PlateRate Meal Pick',
+            text: shareText,
+            url: shareUrl
+          });
+        } catch (err) {
+          console.log("Share dismissed");
+        }
+      } else {
+        // Fallback: Copy to clipboard
+        navigator.clipboard.writeText(`${shareText} Check it out: ${shareUrl}`);
+        alert("Pick copied to clipboard! Paste it into your message or group chat.");
+      }
+    }
+
+    // Geolocation handlers
     document.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hasLat = urlParams.get('user_lat');
@@ -794,9 +899,7 @@
               sessionStorage.setItem('pr_lon', pos.coords.longitude);
               applyLocationAndReload(pos.coords.latitude, pos.coords.longitude);
             },
-            (err) => {
-              console.log("[Geo] Location prompt dismissed or unaccepted:", err.message);
-            },
+            (err) => {},
             { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
           );
         }
@@ -813,10 +916,7 @@
 
     function triggerDeviceLocation() {
       const btnText = document.getElementById('gpsBtnText');
-      if (!navigator.geolocation) {
-        alert("Geolocation is not supported by your browser.");
-        return;
-      }
+      if (!navigator.geolocation) return alert("Geolocation not supported.");
       btnText.innerText = "Finding...";
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -825,7 +925,7 @@
           applyLocationAndReload(pos.coords.latitude, pos.coords.longitude);
         },
         (err) => {
-          alert("Could not access device location. Please make sure location permissions are allowed.");
+          alert("Location permission required.");
           btnText.innerText = "Use GPS";
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -845,6 +945,16 @@
 
     function closeAuthModal() {
       document.getElementById('authModal').classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function openCriticsModal() {
+      document.getElementById('criticsModal').classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeCriticsModal() {
+      document.getElementById('criticsModal').classList.add('hidden');
       document.body.classList.remove('overflow-hidden');
     }
 
@@ -947,9 +1057,7 @@
 
       if (candidates.length === 0) {
         const confirmLoc = confirm("No restaurants loaded yet. Locate your area now?");
-        if (confirmLoc) {
-          triggerDeviceLocation();
-        }
+        if (confirmLoc) triggerDeviceLocation();
         return;
       }
 
@@ -983,6 +1091,7 @@
           emoji.innerText = "🎉";
 
           const winner = candidates[Math.floor(Math.random() * candidates.length)];
+          latestWinningPick = winner;
 
           if (winner.type === 'plate') {
             title.innerText = winner.title;
@@ -996,7 +1105,7 @@
           if (winner.url && winner.url !== '#' && winner.url !== '') {
             linkBtn.href = winner.url;
             linkBtn.classList.remove('hidden');
-            linkBtn.innerText = winner.type === 'plate' ? "View Plate & Spot ↗" : "View Website & Menu ↗";
+            linkBtn.innerText = winner.type === 'plate' ? "View Spot ↗" : "Menu ↗";
           } else {
             linkBtn.classList.add('hidden');
           }
@@ -1056,11 +1165,19 @@
       });
     }
 
+    const criticsModalOverlay = document.getElementById('criticsModal');
+    if (criticsModalOverlay) {
+      criticsModalOverlay.addEventListener('click', function(e) {
+        if (e.target === criticsModalOverlay) closeCriticsModal();
+      });
+    }
+
     window.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         closePostModal();
         closeRouletteModal();
         closeAuthModal();
+        closeCriticsModal();
       }
     });
 
