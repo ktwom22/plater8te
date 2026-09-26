@@ -162,7 +162,7 @@
     </div>
     {% endif %}
 
-    <!-- Plate Duel of the Week (With Direct Share) -->
+    <!-- Plate Duel of the Week (Safe Data Attributes for Sharing) -->
     {% if active_duel %}
     <div id="duelSection" class="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm scroll-mt-20">
       <div class="flex justify-between items-center">
@@ -174,10 +174,14 @@
             {{ (active_duel.votes_a or 0) + (active_duel.votes_b or 0) }} votes
           </span>
           <button type="button"
-                  onclick="sharePlateDuel('{{ active_duel.title | escape }}', '{{ active_duel.plate_a_dish | escape }}', '{{ active_duel.plate_b_dish | escape }}')"
+                  id="duelShareBtn"
+                  onclick="sharePlateDuel()"
+                  data-title="{{ active_duel.title }}"
+                  data-dish-a="{{ active_duel.plate_a_dish }}"
+                  data-dish-b="{{ active_duel.plate_b_dish }}"
                   class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-xl text-[11px] font-extrabold flex items-center space-x-1 transition">
             <span>⚔️</span>
-            <span>Share Duel</span>
+            <span id="duelShareText">Share Duel</span>
           </button>
         </div>
       </div>
@@ -843,24 +847,42 @@
       {% endfor %}
     ];
 
-    // --- SHARE FUNCTION 1: PLATE DUEL OF THE WEEK ---
-    async function sharePlateDuel(title, dishA, dishB) {
-      const shareUrl = window.location.origin + '/#duelSection';
-      const shareText = `⚔️ Plate Duel Clash: "${dishA}" vs. "${dishB}"! Who takes the crown? Cast your vote on PlateRate:`;
+    // --- SHARE FUNCTION 1: PLATE DUEL OF THE WEEK (Using DOM dataset) ---
+    async function sharePlateDuel() {
+      const btn = document.getElementById('duelShareBtn');
+      const label = document.getElementById('duelShareText');
+      if (!btn) return;
+
+      const title = btn.getAttribute('data-title') || 'Plate Duel of the Week';
+      const dishA = btn.getAttribute('data-dish-a') || 'Option A';
+      const dishB = btn.getAttribute('data-dish-b') || 'Option B';
+
+      const shareUrl = `${window.location.origin}/#duelSection`;
+      const shareText = `⚔️ Food Debate: "${dishA}" vs. "${dishB}"! Who makes it better? Cast your vote on PlateRate:`;
 
       if (navigator.share) {
         try {
           await navigator.share({
-            title: title || 'Plate Duel of the Week',
+            title: title,
             text: shareText,
             url: shareUrl
           });
         } catch (err) {
-          console.log("Duel share dismissed");
+          // User dismissed native share sheet
         }
       } else {
-        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
-        alert("Duel vote link copied to clipboard! Share it in your group chat to settle the debate.");
+        try {
+          await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+          if (label) {
+            const original = label.innerText;
+            label.innerText = "Link Copied!";
+            setTimeout(() => { label.innerText = original; }, 2000);
+          } else {
+            alert("Duel link copied to clipboard!");
+          }
+        } catch (clipErr) {
+          alert(`Vote on this clash here: ${shareUrl}`);
+        }
       }
     }
 
@@ -879,7 +901,7 @@
             url: shareUrl
           });
         } catch (err) {
-          console.log("Plate share dismissed");
+          // User dismissed plate share
         }
       } else {
         await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
@@ -907,7 +929,7 @@
             url: shareUrl
           });
         } catch (err) {
-          console.log("Share dismissed");
+          // Dismissed
         }
       } else {
         await navigator.clipboard.writeText(`${shareText} Check it out: ${shareUrl}`);
