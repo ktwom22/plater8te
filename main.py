@@ -87,7 +87,6 @@ EXCLUDED_TYPES = {
 
 
 def is_invalid_spot(name: str, types: list = None) -> bool:
-    """Returns True if matching fast food chains, gas stations, or retail shops."""
     name_lower = name.lower()
     for bad in NON_RESTAURANT_BLOCKLIST:
         if bad in name_lower:
@@ -130,21 +129,16 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return r * c
 
 
-# --- BADGE ENGINES ---
-
 def compute_user_badges(user_id: int, conn) -> list:
-    """Computes comprehensive tier, category, and engagement badges."""
     if not user_id:
         return []
 
     c = conn.cursor()
     badges = []
 
-    # 1. Pioneer
     if user_id <= 25:
         badges.append({"label": "Pioneer", "icon": "🚀", "color": "bg-indigo-50 text-indigo-700 border-indigo-200"})
 
-    # 2. Volume Tiers
     c.execute("""
         SELECT COUNT(*) AS total,
                AVG(rating) AS avg_rating,
@@ -167,7 +161,6 @@ def compute_user_badges(user_id: int, conn) -> list:
     elif total_plates >= 1:
         badges.append({"label": "Apprentice", "icon": "🥉", "color": "bg-stone-50 text-stone-700 border-stone-200"})
 
-    # 3. Palate Traits
     if total_plates >= 5:
         if avg_rating >= 8.5:
             badges.append({"label": "Taste Maker", "icon": "🌟", "color": "bg-rose-50 text-rose-700 border-rose-200"})
@@ -180,7 +173,6 @@ def compute_user_badges(user_id: int, conn) -> list:
     if total_plates >= 5 and photo_count == total_plates:
         badges.append({"label": "Visual Storyteller", "icon": "📸", "color": "bg-cyan-50 text-cyan-700 border-cyan-200"})
 
-    # 4. Social Engagement
     c.execute("""
         SELECT COUNT(cm.id) AS comments_received
         FROM plates p
@@ -196,7 +188,6 @@ def compute_user_badges(user_id: int, conn) -> list:
     if saves_count >= 10:
         badges.append({"label": "Trophy Vault", "icon": "🔖", "color": "bg-violet-50 text-violet-700 border-violet-200"})
 
-    # 5. Cuisine Masteries
     c.execute("""
         SELECT category, COUNT(*) as cat_count
         FROM plates
@@ -229,20 +220,17 @@ def compute_user_badges(user_id: int, conn) -> list:
 
 
 def compute_plate_badges(plate: dict) -> list:
-    """Computes instant dish performance badges."""
     badges = []
     rating = plate.get("rating")
     likes = plate.get("likes") or 0
     comments = plate.get("comment_count") or 0
     reorder = plate.get("reorder") or ""
 
-    # Rating Tiers
     if rating == 10 and reorder == "Hell yes":
         badges.append({"label": "God Tier", "icon": "👑", "color": "bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm"})
     elif rating and rating >= 9.0:
         badges.append({"label": "Diamond Pick", "icon": "💎", "color": "bg-blue-50 text-blue-800 border-blue-200"})
 
-    # Social Proof
     if likes >= 15:
         badges.append({"label": "Viral Plate", "icon": "💥", "color": "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200"})
     elif likes >= 5:
@@ -268,8 +256,6 @@ def compute_plate_badges(plate: dict) -> list:
     return badges
 
 
-# --- SHARED RESTAURANTS REGISTRY HELPER ---
-
 def get_community_restaurants(conn, lat=None, lon=None, query=None, radius_miles=8.0):
     c = conn.cursor()
     c.execute("""
@@ -292,13 +278,11 @@ def get_community_restaurants(conn, lat=None, lon=None, query=None, radius_miles
         r_lat = r["latitude"]
         r_lon = r["longitude"]
 
-        # Text Query filter
         if query:
             q = query.lower()
             if q not in name.lower() and q not in address.lower():
                 continue
 
-        # Proximity filter
         dist = None
         if lat is not None and lon is not None and r_lat and r_lon:
             dist = haversine_miles(lat, lon, r_lat, r_lon)
@@ -320,8 +304,6 @@ def get_community_restaurants(conn, lat=None, lon=None, query=None, radius_miles
     return results
 
 
-# --- GOOGLE PLACES API (NEW) HANDLERS ---
-
 async def fetch_area_restaurants_gps(lat: float, lon: float):
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
         return []
@@ -339,7 +321,7 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
         "locationRestriction": {
             "circle": {
                 "center": {"latitude": lat, "longitude": lon},
-                "radius": 8000.0  # 5 miles
+                "radius": 8000.0
             }
         }
     }
@@ -493,14 +475,12 @@ def get_sitemap():
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
 
-    # Root URL
     xml += """  <url>
     <loc>https://r8theplate.com/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>\n"""
 
-    # Category URLs
     categories = ["Burgers", "Pizza", "Pasta%20%26%20Italian", "Tacos%20%26%20Mexican", "Asian%20%26%20Noodles", "Seafood"]
     for cat in categories:
         xml += f"""  <url>
@@ -509,7 +489,6 @@ def get_sitemap():
     <priority>0.8</priority>
   </url>\n"""
 
-    # Dish Anchors
     for p in plates:
         date_str = p["created_at"].strftime("%Y-%m-%d") if p.get("created_at") else "2026-09-25"
         xml += f"""  <url>
@@ -641,7 +620,7 @@ async def logout():
     return response
 
 
-# --- MAIN FEED ROUTE (HANDLES ANONYMOUS AUTHORS WITH COALESCE) ---
+# --- MAIN FEED ROUTE (NEARBY-FIRST WITH AUTOMATIC GLOBAL FALLBACK) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -652,6 +631,7 @@ async def home(
     user_lat: str = Query(None),
     user_lon: str = Query(None),
     radius_miles: float = Query(15.0),
+    scope: str = Query("nearby"),
     auth_error: str = Query(None)
 ):
     try:
@@ -674,7 +654,6 @@ async def home(
         conn = get_connection()
         c = conn.cursor()
 
-        # LEFT JOIN users and COALESCE username to 'anonymous'
         c.execute("""
             SELECT p.*, 
                    COALESCE(u.username, 'anonymous') AS username,
@@ -701,11 +680,18 @@ async def home(
             plate["plate_badges"] = compute_plate_badges(plate)
             plate["author_badges"] = compute_user_badges(plate["user_id"], conn) if plate.get("user_id") else []
 
+            if parsed_lat is not None and parsed_lon is not None and plate.get("latitude") and plate.get("longitude"):
+                dist = haversine_miles(parsed_lat, parsed_lon, plate["latitude"], plate["longitude"])
+                plate["distance_miles"] = round(dist, 1)
+            else:
+                plate["distance_miles"] = None
+
         user_badges = []
         if user:
             user_badges = compute_user_badges(user["id"], conn)
 
-        filtered_plates = []
+        # Base Filters: Category, Food Query, and Location Text Query
+        base_filtered = []
         for plate in all_plates:
             if category and category.strip():
                 if (plate.get("category") or "").lower() != category.strip().lower():
@@ -726,20 +712,30 @@ async def home(
                 if lq not in addr and lq not in rest:
                     continue
 
-            if parsed_lat is not None and parsed_lon is not None:
-                dist = haversine_miles(parsed_lat, parsed_lon, plate.get("latitude"), plate.get("longitude"))
-                if dist > radius_miles:
-                    continue
-                plate["distance_miles"] = round(dist, 1)
+            base_filtered.append(plate)
+
+        # Proximity Logic: Show nearby dishes, or gracefully fallback to all dishes
+        is_fallback = False
+        final_plates = []
+
+        if parsed_lat is not None and parsed_lon is not None and scope != "all":
+            nearby_plates = [
+                p for p in base_filtered
+                if p["distance_miles"] is not None and p["distance_miles"] <= radius_miles
+            ]
+            nearby_plates.sort(key=lambda x: x["distance_miles"])
+
+            if len(nearby_plates) > 0:
+                final_plates = nearby_plates
             else:
-                plate["distance_miles"] = None
+                is_fallback = True
+                final_plates = base_filtered
+                final_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
+        else:
+            final_plates = base_filtered
+            if parsed_lat is not None and parsed_lon is not None:
+                final_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
-            filtered_plates.append(plate)
-
-        if parsed_lat is not None and parsed_lon is not None:
-            filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
-
-        # Community-Added Spots from Postgres
         community_spots = get_community_restaurants(
             conn, lat=parsed_lat, lon=parsed_lon, query=location_query
         ) or []
@@ -747,7 +743,6 @@ async def home(
         c.close()
         conn.close()
 
-        # External Google Places Spots
         google_spots = []
         area_label = ""
 
@@ -779,7 +774,7 @@ async def home(
             context={
                 "user": user,
                 "user_badges": user_badges,
-                "plates": filtered_plates,
+                "plates": final_plates,
                 "discovered_restaurants": discovered_restaurants,
                 "area_label": area_label,
                 "categories": CATEGORIES,
@@ -788,6 +783,8 @@ async def home(
                 "location_query": location_query or "",
                 "user_lat": parsed_lat if parsed_lat is not None else "",
                 "user_lon": parsed_lon if parsed_lon is not None else "",
+                "scope": scope,
+                "is_fallback": is_fallback,
                 "auth_error": auth_error
             },
         )
@@ -805,7 +802,7 @@ async def home(
 async def favorites_page(request: Request, q: str = Query(None)):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/#auth", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
@@ -858,7 +855,7 @@ async def favorites_page(request: Request, q: str = Query(None)):
 async def my_plates_page(request: Request):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/#auth", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
@@ -928,7 +925,6 @@ async def create_plate(
     conn = get_connection()
     c = conn.cursor()
 
-    # Find or Create in Shared Restaurants Table
     c.execute("SELECT id FROM restaurants WHERE LOWER(name) = LOWER(%s)", (clean_rest,))
     rest_row = c.fetchone()
 
@@ -951,7 +947,6 @@ async def create_plate(
         """, (clean_rest, clean_addr, clean_web, lat, lon, author_id))
         restaurant_id = c.fetchone()["id"]
 
-    # Insert Plate (allows NULL author_id)
     c.execute("""
         INSERT INTO plates (
             user_id, restaurant_id, dish_name, restaurant, category, restaurant_address, 
@@ -968,7 +963,6 @@ async def create_plate(
     c.close()
     conn.close()
 
-    # Deferred rating scheduling
     reminder_target = user["email"] if user else (guest_email.strip() if guest_email else None)
     if is_skipped and reminder_target:
         schedule_rating_reminder(plate_id, reminder_target)
@@ -982,7 +976,7 @@ async def create_plate(
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/#auth", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()

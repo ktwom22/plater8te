@@ -155,11 +155,12 @@
                class="w-full bg-slate-100 border border-transparent focus:border-slate-300 focus:bg-white px-3.5 py-1.5 rounded-full text-xs outline-none transition text-slate-900 placeholder-slate-400">
         {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
         {% if location_query %}<input type="hidden" name="location_query" value="{{ location_query }}">{% endif %}
+        <input type="hidden" name="scope" value="{{ scope }}">
         <input type="hidden" name="user_lat" id="feedLat" value="{{ user_lat if user_lat else '' }}">
         <input type="hidden" name="user_lon" id="feedLon" value="{{ user_lon if user_lon else '' }}">
       </form>
 
-      <!-- Action items -->
+      <!-- Action Items -->
       <div class="flex items-center space-x-2 shrink-0">
         <button type="button" onclick="openPostModal()"
                 class="bg-slate-900 hover:bg-black text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm">
@@ -187,13 +188,13 @@
         <span>Pick For Me</span>
       </button>
 
-      <a href="/?{% if user_lat %}user_lat={{ user_lat }}&user_lon={{ user_lon }}&{% endif %}{% if location_query %}location_query={{ location_query }}&{% endif %}{% if food_query %}food_query={{ food_query }}{% endif %}"
+      <a href="/?scope={{ scope }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-full transition {% if not selected_category %}bg-slate-900 text-white{% else %}bg-white text-slate-600 border border-slate-200{% endif %} shrink-0">
         All
       </a>
 
       {% for cat in categories %}
-      <a href="/?category={{ cat.name }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
+      <a href="/?category={{ cat.name }}&scope={{ scope }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-full transition flex items-center space-x-1 {% if selected_category == cat.name %}bg-rose-600 text-white border-transparent{% else %}bg-white text-slate-700 border border-slate-200{% endif %} shrink-0">
         <span>{{ cat.icon }}</span>
         <span>{{ cat.name }}</span>
@@ -213,10 +214,10 @@
 
   <main class="max-w-xl mx-auto px-4 space-y-4 pt-3">
 
-    <!-- Active Location Banner (Only visible when coordinates exist) -->
+    <!-- Active Location Banner -->
     {% if user_lat and user_lon %}
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-1.5 rounded-xl text-[11px] flex items-center justify-between font-semibold">
-      <span>📍 Centered on your device GPS (within 5 miles)</span>
+      <span>📍 Centered on your device GPS (within 15 miles)</span>
       <button type="button" onclick="clearLocationFilter()" class="underline font-bold text-emerald-700">Clear</button>
     </div>
     {% endif %}
@@ -269,13 +270,45 @@
     </div>
     {% endif %}
 
-    <!-- Community Plates Feed -->
+    <!-- Fallback Notification (When no dishes exist within 15 miles) -->
+    {% if is_fallback %}
+    <div class="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span>⚡</span>
+        <p>No dishes logged nearby yet. <strong>Showing all plates from the community:</strong></p>
+      </div>
+      <button type="button" onclick="openPostModal()" class="text-xs font-bold text-amber-800 underline shrink-0">
+        Be the first +
+      </button>
+    </div>
+    {% endif %}
+
+    <!-- Feed Header with Scope Filter Toggle -->
     <div class="space-y-4 pt-1">
       <div class="flex justify-between items-center px-1">
         <h2 class="text-xs font-black text-slate-400 uppercase tracking-wider">
-          Recent Plates ({{ plates | length }})
+          {% if scope == 'all' or not user_lat %}
+            All Plates ({{ plates | length }})
+          {% elif is_fallback %}
+            Community Feed ({{ plates | length }})
+          {% else %}
+            Plates Near You ({{ plates | length }})
+          {% endif %}
         </h2>
-        {% if food_query or selected_category %}
+
+        <!-- Proximity Scope Toggle -->
+        {% if user_lat %}
+        <div class="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200/70 text-[11px] font-bold">
+          <a href="/?scope=nearby{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
+             class="px-2.5 py-1 rounded-full transition {% if scope != 'all' and not is_fallback %}bg-white text-slate-900 shadow-sm{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+            📍 Nearby
+          </a>
+          <a href="/?scope=all{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
+             class="px-2.5 py-1 rounded-full transition {% if scope == 'all' %}bg-white text-slate-900 shadow-sm{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+            🌎 All Plates
+          </a>
+        </div>
+        {% elif food_query or selected_category %}
           <a href="/" class="text-[11px] font-bold text-slate-400 hover:text-slate-700 underline">Clear filters</a>
         {% endif %}
       </div>
@@ -324,7 +357,7 @@
                 <span>{{ plate.rating }}.0</span>
               </div>
             {% else %}
-              <span class="bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-xl shadow-sm">
+              <span class="bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-xl shadow-sm">
                 Unrated
               </span>
             {% endif %}
@@ -370,7 +403,7 @@
           </div>
           {% endif %}
 
-          <!-- Author Info (Defaults cleanly to @anonymous) -->
+          <!-- Author Info -->
           <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-500">
             <span class="text-[11px]">by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
 
@@ -398,7 +431,7 @@
             </div>
           </div>
 
-          <!-- Comments Drawer (Anyone can comment) -->
+          <!-- Comments Drawer -->
           <div id="comments-drawer-{{ plate.id }}" class="hidden pt-2 border-t border-slate-100 space-y-2">
             <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
               {% if not plate.comments %}
@@ -743,7 +776,6 @@
       {% endfor %}
     ];
 
-    // --- AUTO-DETECT / PERSIST GEOLOCATION ---
     document.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hasLat = urlParams.get('user_lat');
@@ -806,7 +838,6 @@
       window.location.href = "/";
     }
 
-    // --- POPUP AUTH MODAL CONTROLS ---
     function openAuthModal() {
       document.getElementById('authModal').classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
@@ -838,7 +869,6 @@
       }
     }
 
-    // --- MANUAL RESTAURANT TOGGLE ---
     function toggleManualRestaurant() {
       const drawer = document.getElementById('restaurantFields');
       const toggleBtn = document.getElementById('toggleManualBtn');
@@ -901,7 +931,6 @@
       if (lon && lon !== 'None') document.getElementById('lonField').value = lon;
     }
 
-    // --- ROULETTE / RANDOMIZER ENGINE ---
     let rouletteTimer = null;
 
     function startRouletteSpin() {
@@ -982,7 +1011,6 @@
       document.getElementById('rouletteModalOverlay').classList.add('hidden');
     }
 
-    // Modal, Canvas, and Image Editor
     let fetchedRestaurants = [];
     let originalImg = new Image();
     let isImageLoaded = false;
