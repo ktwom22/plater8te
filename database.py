@@ -3,9 +3,10 @@ import time
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+# Fallback directly to your public Railway database URL
 DATABASE_URL = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/platerate"
+    "postgresql://postgres:mipHSVDCfYqNNFtvJGcNknSQFHHSuFtP@maglev.proxy.rlwy.net:17278/railway"
 )
 
 
@@ -108,7 +109,7 @@ def init_db():
     );
     """)
 
-    # Duel Votes (fingerprint/cookie tracking to prevent duplicate voting)
+    # Duel Votes
     c.execute("""
     CREATE TABLE IF NOT EXISTS duel_votes (
         id SERIAL PRIMARY KEY,
