@@ -162,16 +162,24 @@
     </div>
     {% endif %}
 
-    <!-- Plate Duel of the Week -->
+    <!-- Plate Duel of the Week (With Direct Share) -->
     {% if active_duel %}
-    <div class="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm">
+    <div id="duelSection" class="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm scroll-mt-20">
       <div class="flex justify-between items-center">
         <span class="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/60">
           🔥 Plate Duel of the Week
         </span>
-        <span id="duelTotalVotes" class="text-[11px] text-slate-400 font-bold">
-          {{ (active_duel.votes_a or 0) + (active_duel.votes_b or 0) }} votes
-        </span>
+        <div class="flex items-center space-x-2">
+          <span id="duelTotalVotes" class="text-[11px] text-slate-400 font-bold">
+            {{ (active_duel.votes_a or 0) + (active_duel.votes_b or 0) }} votes
+          </span>
+          <button type="button"
+                  onclick="sharePlateDuel('{{ active_duel.title | escape }}', '{{ active_duel.plate_a_dish | escape }}', '{{ active_duel.plate_b_dish | escape }}')"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-xl text-[11px] font-extrabold flex items-center space-x-1 transition">
+            <span>⚔️</span>
+            <span>Share Duel</span>
+          </button>
+        </div>
       </div>
 
       <h3 class="text-sm font-black text-slate-900">{{ active_duel.title }}</h3>
@@ -334,7 +342,7 @@
       {% endif %}
 
       {% for plate in plates %}
-      <article id="plate-{{ plate.id }}" class="plate-card rounded-3xl overflow-hidden transition">
+      <article id="plate-{{ plate.id }}" class="plate-card rounded-3xl overflow-hidden transition scroll-mt-20">
 
         {% if plate.photo_url %}
         <div class="relative w-full aspect-square bg-slate-100 overflow-hidden group">
@@ -419,10 +427,10 @@
           <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-500">
             <span class="text-[11px]">by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
 
-            <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2">
               <form action="/plates/{{ plate.id }}/interact" method="post">
                 <input type="hidden" name="action_type" value="like">
-                <button type="submit" class="flex items-center space-x-1 text-slate-500 hover:text-rose-600 font-bold transition">
+                <button type="submit" class="flex items-center space-x-1 text-slate-500 hover:text-rose-600 font-bold transition px-1">
                   <span>❤️</span>
                   <span>{{ plate.likes }}</span>
                 </button>
@@ -430,15 +438,24 @@
 
               <form action="/plates/{{ plate.id }}/interact" method="post">
                 <input type="hidden" name="action_type" value="save">
-                <button type="submit" class="flex items-center space-x-1 text-slate-500 hover:text-indigo-600 font-bold transition">
+                <button type="submit" class="flex items-center space-x-1 text-slate-500 hover:text-indigo-600 font-bold transition px-1">
                   <span>🔖</span>
                   <span>{{ plate.saves }}</span>
                 </button>
               </form>
 
               <button type="button" onclick="toggleComments('{{ plate.id }}')"
-                      class="flex items-center space-x-1 text-slate-500 hover:text-slate-900 font-bold transition">
+                      class="flex items-center space-x-1 text-slate-500 hover:text-slate-900 font-bold transition px-1">
                 <span>💬 {{ plate.comment_count }}</span>
+              </button>
+
+              <!-- One-Tap Share Button for Individual Plates -->
+              <button type="button"
+                      id="share-btn-{{ plate.id }}"
+                      onclick="sharePlate('{{ plate.id }}', '{{ plate.dish_name | escape }}', '{{ plate.restaurant | escape }}', '{{ plate.rating or '' }}')"
+                      class="flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg font-bold transition text-[11px] ml-1">
+                <span>🔗</span>
+                <span id="share-text-{{ plate.id }}">Share</span>
               </button>
             </div>
           </div>
@@ -483,7 +500,7 @@
     <span class="text-xs uppercase tracking-wider">Post Plate</span>
   </button>
 
-  <!-- Critics Leaderboard Modal (Syntax bug fixed) -->
+  <!-- Critics Leaderboard Modal -->
   <div id="criticsModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4">
       <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -826,6 +843,79 @@
       {% endfor %}
     ];
 
+    // --- SHARE FUNCTION 1: PLATE DUEL OF THE WEEK ---
+    async function sharePlateDuel(title, dishA, dishB) {
+      const shareUrl = window.location.origin + '/#duelSection';
+      const shareText = `⚔️ Plate Duel Clash: "${dishA}" vs. "${dishB}"! Who takes the crown? Cast your vote on PlateRate:`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: title || 'Plate Duel of the Week',
+            text: shareText,
+            url: shareUrl
+          });
+        } catch (err) {
+          console.log("Duel share dismissed");
+        }
+      } else {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        alert("Duel vote link copied to clipboard! Share it in your group chat to settle the debate.");
+      }
+    }
+
+    // --- SHARE FUNCTION 2: INDIVIDUAL POSTED PLATES ---
+    async function sharePlate(plateId, dishName, restaurant, rating) {
+      const shareUrl = `${window.location.origin}/#plate-${plateId}`;
+      const ratingStr = rating ? ` (Rated ★ ${rating}/10)` : '';
+      const shareText = `Check out this plate: ${dishName} at ${restaurant}${ratingStr} on PlateRate:`;
+      const btnText = document.getElementById(`share-text-${plateId}`);
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `${dishName} @ ${restaurant}`,
+            text: shareText,
+            url: shareUrl
+          });
+        } catch (err) {
+          console.log("Plate share dismissed");
+        }
+      } else {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        if (btnText) {
+          btnText.innerText = "Copied!";
+          setTimeout(() => { btnText.innerText = "Share"; }, 2000);
+        } else {
+          alert("Plate review link copied to clipboard!");
+        }
+      }
+    }
+
+    // --- SHARE FUNCTION 3: PLATE ROULETTE PICK ---
+    async function shareRoulettePick() {
+      if (!latestWinningPick) return;
+
+      const shareText = `PlateRate picked our meal! ${latestWinningPick.title} at ${latestWinningPick.restaurant} (Rated ★ ${latestWinningPick.rating || 9}/10).`;
+      const shareUrl = window.location.origin;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'PlateRate Meal Pick',
+            text: shareText,
+            url: shareUrl
+          });
+        } catch (err) {
+          console.log("Share dismissed");
+        }
+      } else {
+        await navigator.clipboard.writeText(`${shareText} Check it out: ${shareUrl}`);
+        alert("Pick copied to clipboard! Paste it into your message or group chat.");
+      }
+    }
+
+    // Plate Duel AJAX Voting
     async function castDuelVote(duelId, choice) {
       const msg = document.getElementById('duelStatusMsg');
       msg.innerText = "Submitting vote...";
@@ -853,28 +943,7 @@
       }
     }
 
-    async function shareRoulettePick() {
-      if (!latestWinningPick) return;
-
-      const shareText = `PlateRate picked our meal! ${latestWinningPick.title} at ${latestWinningPick.restaurant} (Rated ★ ${latestWinningPick.rating || 9}/10).`;
-      const shareUrl = window.location.origin;
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'PlateRate Meal Pick',
-            text: shareText,
-            url: shareUrl
-          });
-        } catch (err) {
-          console.log("Share dismissed");
-        }
-      } else {
-        navigator.clipboard.writeText(`${shareText} Check it out: ${shareUrl}`);
-        alert("Pick copied to clipboard! Paste it into your message or group chat.");
-      }
-    }
-
+    // Geolocation handlers
     document.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hasLat = urlParams.get('user_lat');
