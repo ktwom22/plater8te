@@ -519,7 +519,7 @@
           </div>
           {% endif %}
 
-          <!-- Author Info (Gracefully defaults to @anonymous) -->
+          <!-- Author Info -->
           <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 pt-1">
             <span>Posted by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
             {% for ub in plate.author_badges %}
@@ -555,7 +555,7 @@
             </button>
           </div>
 
-          <!-- Comments Drawer (Anyone can comment) -->
+          <!-- Comments Drawer -->
           <div id="comments-drawer-{{ plate.id }}" class="hidden pt-3 border-t border-slate-100 space-y-3">
             <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
               {% if not plate.comments %}
@@ -589,7 +589,7 @@
 
   </main>
 
-  <!-- Sticky Mobile FAB (Available to everyone) -->
+  <!-- Sticky Mobile FAB -->
   <button type="button" onclick="openPostModal()"
           class="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-rose-600 to-orange-500 text-white font-black px-5 py-3.5 rounded-full shadow-xl flex items-center space-x-2 transition transform hover:scale-105 active:scale-95 coral-glow">
     <span class="text-lg leading-none">+</span>
@@ -631,7 +631,7 @@
     </div>
   </div>
 
-  <!-- ================= POST MODAL (FOR REGISTERED & ANONYMOUS USERS) ================= -->
+  <!-- ================= POST MODAL ================= -->
   <div id="postModalOverlay" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
 
@@ -703,7 +703,7 @@
               </select>
             </div>
 
-            <!-- Toggle Manual Restaurant Creation -->
+            <!-- Toggle Manual Restaurant Creation Link -->
             <div class="pt-1 text-right">
               <button type="button" onclick="toggleManualRestaurant()" id="toggleManualBtn"
                       class="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline">
@@ -711,8 +711,8 @@
               </button>
             </div>
 
-            <!-- Restaurant Details -->
-            <div id="restaurantFields" class="space-y-2 pt-2 border-t border-slate-200">
+            <!-- Restaurant Details (HIDDEN BY DEFAULT) -->
+            <div id="restaurantFields" class="hidden space-y-2 pt-2 border-t border-slate-200">
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Restaurant Name</label>
                 <input type="text" name="restaurant" id="restaurantName" placeholder="e.g. Bad Brgr" required
@@ -924,22 +924,65 @@
 
     // --- MANUAL RESTAURANT TOGGLE ---
     function toggleManualRestaurant() {
+      const drawer = document.getElementById('restaurantFields');
+      const toggleBtn = document.getElementById('toggleManualBtn');
       const nameField = document.getElementById('restaurantName');
       const searchBox = document.getElementById('postLocSearchInput');
 
-      if (searchBox && searchBox.value.trim() && !nameField.value.trim()) {
-        nameField.value = searchBox.value.trim();
-      }
+      const isHidden = drawer.classList.contains('hidden');
 
-      const cachedLat = sessionStorage.getItem('pr_lat');
-      const cachedLon = sessionStorage.getItem('pr_lon');
-      if (cachedLat && cachedLon) {
-        document.getElementById('latField').value = cachedLat;
-        document.getElementById('lonField').value = cachedLon;
-      }
+      if (isHidden) {
+        drawer.classList.remove('hidden');
+        toggleBtn.innerText = "− Hide manual details";
 
-      nameField.focus();
-      document.getElementById('toggleManualBtn').innerText = "✓ Ready to enter details below";
+        if (searchBox && searchBox.value.trim() && !nameField.value.trim()) {
+          nameField.value = searchBox.value.trim();
+        }
+
+        const cachedLat = sessionStorage.getItem('pr_lat');
+        const cachedLon = sessionStorage.getItem('pr_lon');
+        if (cachedLat && cachedLon) {
+          document.getElementById('latField').value = cachedLat;
+          document.getElementById('lonField').value = cachedLon;
+        }
+
+        nameField.focus();
+      } else {
+        drawer.classList.add('hidden');
+        toggleBtn.innerText = "Can't find it? + Add restaurant manually";
+      }
+    }
+
+    function applySelectedRestaurant(dropdown) {
+      const index = dropdown.value;
+      if (index === "" || !fetchedRestaurants[index]) return;
+      const selected = fetchedRestaurants[index];
+
+      const drawer = document.getElementById('restaurantFields');
+      if (drawer) drawer.classList.remove('hidden');
+      const toggleBtn = document.getElementById('toggleManualBtn');
+      if (toggleBtn) toggleBtn.innerText = "− Hide manual details";
+
+      document.getElementById('restaurantName').value = selected.name || "";
+      document.getElementById('restaurantAddress').value = selected.address || "";
+      document.getElementById('restaurantWebsite').value = selected.website || "";
+      if (selected.lat) document.getElementById('latField').value = selected.lat;
+      if (selected.lon) document.getElementById('lonField').value = selected.lon;
+    }
+
+    function prefillPlateModal(name, address, website, lat, lon) {
+      openPostModal();
+
+      const drawer = document.getElementById('restaurantFields');
+      if (drawer) drawer.classList.remove('hidden');
+      const toggleBtn = document.getElementById('toggleManualBtn');
+      if (toggleBtn) toggleBtn.innerText = "− Hide manual details";
+
+      document.getElementById('restaurantName').value = name || "";
+      document.getElementById('restaurantAddress').value = (address && address !== 'None') ? address : "";
+      document.getElementById('restaurantWebsite').value = (website && website !== 'None') ? website : "";
+      if (lat && lat !== 'None') document.getElementById('latField').value = lat;
+      if (lon && lon !== 'None') document.getElementById('lonField').value = lon;
     }
 
     // --- ROULETTE / RANDOMIZER ENGINE ---
@@ -1099,15 +1142,6 @@
       }
     });
 
-    function prefillPlateModal(name, address, website, lat, lon) {
-      openPostModal();
-      document.getElementById('restaurantName').value = name || "";
-      document.getElementById('restaurantAddress').value = (address && address !== 'None') ? address : "";
-      document.getElementById('restaurantWebsite').value = (website && website !== 'None') ? website : "";
-      if (lat && lat !== 'None') document.getElementById('latField').value = lat;
-      if (lon && lon !== 'None') document.getElementById('lonField').value = lon;
-    }
-
     function toggleRatingFields(checkbox) {
       const fields = document.getElementById('ratingFields');
       const guestBox = document.getElementById('guestEmailBox');
@@ -1248,17 +1282,6 @@
         select.appendChild(opt);
       });
       container.classList.remove('hidden');
-    }
-
-    function applySelectedRestaurant(dropdown) {
-      const index = dropdown.value;
-      if (index === "" || !fetchedRestaurants[index]) return;
-      const selected = fetchedRestaurants[index];
-      document.getElementById('restaurantName').value = selected.name || "";
-      document.getElementById('restaurantAddress').value = selected.address || "";
-      document.getElementById('restaurantWebsite').value = selected.website || "";
-      if (selected.lat) document.getElementById('latField').value = selected.lat;
-      if (selected.lon) document.getElementById('lonField').value = selected.lon;
     }
   </script>
 </body>
