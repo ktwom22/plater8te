@@ -478,7 +478,6 @@ async def search_restaurants(query: str = Query(...)):
 
 @app.post("/api/duels/vote")
 async def vote_duel(request: Request, duel_id: int = Form(...), choice: str = Form(...)):
-    # Persistent voter token cookie to prevent spam
     voter_token = request.cookies.get("voter_token")
     new_token = False
     if not voter_token:
@@ -491,36 +490,39 @@ async def vote_duel(request: Request, duel_id: int = Form(...), choice: str = Fo
 
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT voter_token FROM duel_votes WHERE duel_id = %s AND voter_token = %s", (duel_id, voter_token))
-    already_voted = c.fetchone()
+    try:
+        c.execute("SELECT voter_token FROM duel_votes WHERE duel_id = %s AND voter_token = %s", (duel_id, voter_token))
+        already_voted = c.fetchone()
 
-    if already_voted:
+        if already_voted:
+            return JSONResponse({"status": "already_voted", "message": "You've already cast your vote for this duel!"})
+
+        c.execute("INSERT INTO duel_votes (duel_id, voter_token, choice) VALUES (%s, %s, %s)",
+                  (duel_id, voter_token, choice_clean))
+        if choice_clean == "A":
+            c.execute("UPDATE duels SET votes_a = votes_a + 1 WHERE id = %s RETURNING votes_a, votes_b", (duel_id,))
+        else:
+            c.execute("UPDATE duels SET votes_b = votes_b + 1 WHERE id = %s RETURNING votes_a, votes_b", (duel_id,))
+
+        updated = c.fetchone()
+        conn.commit()
+
+        total = (updated["votes_a"] or 0) + (updated["votes_b"] or 0)
+        pct_a = round(((updated["votes_a"] or 0) / total) * 100) if total > 0 else 50
+        pct_b = 100 - pct_a
+
+        response = JSONResponse(
+            {"status": "success", "votes_a": updated["votes_a"], "votes_b": updated["votes_b"], "pct_a": pct_a,
+             "pct_b": pct_b})
+        if new_token:
+            response.set_cookie(key="voter_token", value=voter_token, max_age=31536000, httponly=True)
+        return response
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
         c.close()
         conn.close()
-        return JSONResponse({"status": "already_voted", "message": "You've already cast your vote for this duel!"})
-
-    c.execute("INSERT INTO duel_votes (duel_id, voter_token, choice) VALUES (%s, %s, %s)",
-              (duel_id, voter_token, choice_clean))
-    if choice_clean == "A":
-        c.execute("UPDATE duels SET votes_a = votes_a + 1 WHERE id = %s RETURNING votes_a, votes_b", (duel_id,))
-    else:
-        c.execute("UPDATE duels SET votes_b = votes_b + 1 WHERE id = %s RETURNING votes_a, votes_b", (duel_id,))
-
-    updated = c.fetchone()
-    conn.commit()
-    c.close()
-    conn.close()
-
-    total = (updated["votes_a"] or 0) + (updated["votes_b"] or 0)
-    pct_a = round(((updated["votes_a"] or 0) / total) * 100) if total > 0 else 50
-    pct_b = 100 - pct_a
-
-    response = JSONResponse(
-        {"status": "success", "votes_a": updated["votes_a"], "votes_b": updated["votes_b"], "pct_a": pct_a,
-         "pct_b": pct_b})
-    if new_token:
-        response.set_cookie(key="voter_token", value=voter_token, max_age=31536000, httponly=True)
-    return response
 
 
 # --- AUTHENTICATION ROUTES ---
@@ -627,7 +629,7 @@ async def logout():
     return response
 
 
-# --- RESTAURANT QR LANDING PAGE (GROWTH ENGINE 5) ---
+# --- RESTAURANT QR LANDING PAGE ---
 
 @app.get("/r/{restaurant_id}", response_class=HTMLResponse)
 async def restaurant_qr_page(restaurant_id: int, request: Request):
@@ -687,7 +689,7 @@ async def restaurant_qr_page(restaurant_id: int, request: Request):
     )
 
 
-# --- MAIN FEED ROUTE (INTEGRATES ALL 5 ENGINES) ---
+# --- MAIN FEED ROUTE (WITH ISOLATED TRY-EXCEPT GUARDS) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -721,46 +723,58 @@ async def home(
         conn = get_connection()
         c = conn.cursor()
 
-        # Engine 1: Plate Duel of the Week
-        c.execute("""
-            SELECT d.*, 
-                   pa.dish_name as plate_a_dish, pa.restaurant as plate_a_restaurant, pa.photo_url as plate_a_photo, pa.rating as plate_a_rating,
-                   pb.dish_name as plate_b_dish, pb.restaurant as plate_b_restaurant, pb.photo_url as plate_b_photo, pb.rating as plate_b_rating
-            FROM duels d
-            JOIN plates pa ON d.plate_a_id = pa.id
-            JOIN plates pb ON d.plate_b_id = pb.id
-            WHERE d.is_active = TRUE
-            ORDER BY d.created_at DESC
-            LIMIT 1
-        """)
-        active_duel_row = c.fetchone()
+        # Safe Query 1: Active Duel
         active_duel = None
-        if active_duel_row:
-            total_votes = (active_duel_row["votes_a"] or 0) + (active_duel_row["votes_b"] or 0)
-            pct_a = round(((active_duel_row["votes_a"] or 0) / total_votes) * 100) if total_votes > 0 else 50
-            pct_b = 100 - pct_a
-            active_duel = dict(active_duel_row)
-            active_duel["pct_a"] = pct_a
-            active_duel["pct_b"] = pct_b
+        try:
+            c.execute("""
+                SELECT d.*, 
+                       pa.dish_name as plate_a_dish, pa.restaurant as plate_a_restaurant, pa.photo_url as plate_a_photo, pa.rating as plate_a_rating,
+                       pb.dish_name as plate_b_dish, pb.restaurant as plate_b_restaurant, pb.photo_url as plate_b_photo, pb.rating as plate_b_rating
+                FROM duels d
+                JOIN plates pa ON d.plate_a_id = pa.id
+                JOIN plates pb ON d.plate_b_id = pb.id
+                WHERE d.is_active = TRUE
+                ORDER BY d.created_at DESC
+                LIMIT 1
+            """)
+            active_duel_row = c.fetchone()
+            if active_duel_row:
+                total_votes = (active_duel_row["votes_a"] or 0) + (active_duel_row["votes_b"] or 0)
+                pct_a = round(((active_duel_row["votes_a"] or 0) / total_votes) * 100) if total_votes > 0 else 50
+                pct_b = 100 - pct_a
+                active_duel = dict(active_duel_row)
+                active_duel["pct_a"] = pct_a
+                active_duel["pct_b"] = pct_b
+        except Exception as e:
+            conn.rollback()
 
-        # Engine 3: Pioneer & Critics Leaderboard
-        c.execute("SELECT COUNT(*) AS total_critics FROM users")
-        critics_count = c.fetchone()["total_critics"] or 0
-        pioneers_left = max(0, 25 - critics_count)
+        # Safe Query 2: Critics & Pioneers
+        pioneers_left = 25
+        top_critics = []
+        try:
+            c.execute("SELECT COUNT(*) AS total_critics FROM users")
+            critics_count = c.fetchone()["total_critics"] or 0
+            pioneers_left = max(0, 25 - critics_count)
 
-        c.execute("""
-            SELECT u.id, u.username, COUNT(p.id) as plate_count, AVG(p.rating) as avg_rating
-            FROM users u
-            JOIN plates p ON u.id = p.user_id
-            GROUP BY u.id
-            ORDER BY plate_count DESC, avg_rating DESC
-            LIMIT 5
-        """)
-        top_critics = c.fetchall() or []
+            c.execute("""
+                SELECT u.id, u.username, COUNT(p.id) as plate_count, AVG(p.rating) as avg_rating
+                FROM users u
+                JOIN plates p ON u.id = p.user_id
+                GROUP BY u.id
+                ORDER BY plate_count DESC, avg_rating DESC
+                LIMIT 5
+            """)
+            top_critics = c.fetchall() or []
+        except Exception:
+            conn.rollback()
 
-        # Engine 4: Active Food Trails
-        c.execute("SELECT * FROM trails ORDER BY id ASC")
-        active_trails = c.fetchall() or []
+        # Safe Query 3: Trails
+        active_trails = []
+        try:
+            c.execute("SELECT * FROM trails ORDER BY id ASC")
+            active_trails = c.fetchall() or []
+        except Exception:
+            conn.rollback()
 
         # Plates Query
         c.execute("""
@@ -799,7 +813,6 @@ async def home(
         if user:
             user_badges = compute_user_badges(user["id"], conn)
 
-        # Baseline category and text filtering
         base_filtered = []
         for plate in all_plates:
             if category and category.strip():
@@ -823,7 +836,6 @@ async def home(
 
             base_filtered.append(plate)
 
-        # Proximity Logic: Nearby-first with graceful fallback
         is_fallback = False
         final_plates = []
 
@@ -905,8 +917,8 @@ async def home(
     except Exception as e:
         print(f"[!] Root Route Exception: {traceback.format_exc()}")
         return HTMLResponse(
-            "<!DOCTYPE html><html><body><h1>PlateRate Updating</h1><p>Please refresh in a moment.</p></body></html>",
-            status_code=200
+            f"<!DOCTYPE html><html><body><h1>PlateRate Service Notice</h1><p>{str(e)}</p></body></html>",
+            status_code=500
         )
 
 
@@ -996,7 +1008,7 @@ async def my_plates_page(request: Request):
     )
 
 
-# --- CREATE PLATE (PERSISTS TO REGISTRY) ---
+# --- CREATE PLATE ---
 
 @app.post("/plates")
 async def create_plate(
@@ -1090,7 +1102,7 @@ async def create_plate(
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/#auth", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
