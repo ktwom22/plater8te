@@ -134,6 +134,9 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 
 def compute_user_badges(user_id: int, conn) -> list:
     """Computes comprehensive tier, category, and engagement badges."""
+    if not user_id:
+        return []
+
     c = conn.cursor()
     badges = []
 
@@ -193,7 +196,7 @@ def compute_user_badges(user_id: int, conn) -> list:
     if saves_count >= 10:
         badges.append({"label": "Trophy Vault", "icon": "🔖", "color": "bg-violet-50 text-violet-700 border-violet-200"})
 
-    # 5. Cuisine Masteries (3+ posts in vertical)
+    # 5. Cuisine Masteries
     c.execute("""
         SELECT category, COUNT(*) as cat_count
         FROM plates
@@ -320,9 +323,7 @@ def get_community_restaurants(conn, lat=None, lon=None, query=None, radius_miles
 # --- GOOGLE PLACES API (NEW) HANDLERS ---
 
 async def fetch_area_restaurants_gps(lat: float, lon: float):
-    """Fetches local independent eateries using official Google Places Table A types."""
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
-        print("[!] Warning: GOOGLE_PLACES_API_KEY is not set.")
         return []
 
     url = "https://places.googleapis.com/v1/places:searchNearby"
@@ -378,7 +379,6 @@ async def fetch_area_restaurants_gps(lat: float, lon: float):
 
 
 async def fetch_area_restaurants_query(query_text: str):
-    """Text search with fallback parsing."""
     if not GOOGLE_PLACES_API_KEY or GOOGLE_PLACES_API_KEY == "YOUR_GOOGLE_PLACES_API_KEY":
         return []
 
@@ -423,7 +423,7 @@ async def fetch_area_restaurants_query(query_text: str):
         return []
 
 
-# --- SEO & AI BOT DIRECTIVE ENDPOINTS ---
+# --- SEO & AI DIRECTIVE ENDPOINTS ---
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def get_robots_txt():
@@ -487,7 +487,7 @@ def get_sitemap():
         c.close()
         conn.close()
     except Exception as e:
-        print(f"[!] Error building sitemap from plates: {e}")
+        print(f"[!] Error building sitemap: {e}")
         plates = []
 
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -511,7 +511,7 @@ def get_sitemap():
 
     # Dish Anchors
     for p in plates:
-        date_str = p["created_at"].strftime("%Y-%m-%d") if p.get("created_at") else "2026-09-21"
+        date_str = p["created_at"].strftime("%Y-%m-%d") if p.get("created_at") else "2026-09-25"
         xml += f"""  <url>
     <loc>https://r8theplate.com/#plate-{p['id']}</loc>
     <lastmod>{date_str}</lastmod>
@@ -641,7 +641,7 @@ async def logout():
     return response
 
 
-# --- MAIN FEED ROUTE (ROBUST CRAWLER ERROR HANDLING) ---
+# --- MAIN FEED ROUTE (HANDLES ANONYMOUS AUTHORS WITH COALESCE) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -674,29 +674,32 @@ async def home(
         conn = get_connection()
         c = conn.cursor()
 
+        # LEFT JOIN users and COALESCE username to 'anonymous'
         c.execute("""
-            SELECT p.*, u.username,
+            SELECT p.*, 
+                   COALESCE(u.username, 'anonymous') AS username,
                    (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'like') AS likes,
                    (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'save') AS saves,
                    (SELECT COUNT(*) FROM comments WHERE plate_id = p.id) AS comment_count
             FROM plates p
-            JOIN users u ON p.user_id = u.id
+            LEFT JOIN users u ON p.user_id = u.id
             ORDER BY p.is_sponsored DESC, p.created_at DESC
         """)
         all_plates = c.fetchall() or []
 
         for plate in all_plates:
             c.execute("""
-                SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
+                SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, 
+                       COALESCE(u.username, 'anonymous') as username
                 FROM comments c
-                JOIN users u ON c.user_id = u.id
+                LEFT JOIN users u ON c.user_id = u.id
                 WHERE c.plate_id = %s
                 ORDER BY c.created_at ASC
             """, (plate["id"],))
             plate["comments"] = c.fetchall() or []
 
             plate["plate_badges"] = compute_plate_badges(plate)
-            plate["author_badges"] = compute_user_badges(plate["user_id"], conn)
+            plate["author_badges"] = compute_user_badges(plate["user_id"], conn) if plate.get("user_id") else []
 
         user_badges = []
         if user:
@@ -736,7 +739,7 @@ async def home(
         if parsed_lat is not None and parsed_lon is not None:
             filtered_plates.sort(key=lambda x: x["distance_miles"] if x["distance_miles"] is not None else 999999)
 
-        # 1. Fetch Community-Added Restaurants from Shared Postgres Registry
+        # Community-Added Spots from Postgres
         community_spots = get_community_restaurants(
             conn, lat=parsed_lat, lon=parsed_lon, query=location_query
         ) or []
@@ -744,7 +747,7 @@ async def home(
         c.close()
         conn.close()
 
-        # 2. Fetch External Google Places Spots
+        # External Google Places Spots
         google_spots = []
         area_label = ""
 
@@ -758,7 +761,6 @@ async def home(
             area_label = "Local Independent Eateries"
             google_spots = await fetch_area_restaurants_query("Lebanon ME Rochester NH")
 
-        # 3. Merge Lists (Prioritizing community entries)
         existing_names = set()
         discovered_restaurants = []
 
@@ -790,7 +792,7 @@ async def home(
             },
         )
     except Exception as e:
-        print(f"[!] Root Route Exception Handled for Crawler: {traceback.format_exc()}")
+        print(f"[!] Root Route Exception: {traceback.format_exc()}")
         return HTMLResponse(
             "<!DOCTYPE html><html><body><h1>PlateRate Service Updating</h1><p>Please reload shortly.</p></body></html>",
             status_code=200
@@ -803,19 +805,19 @@ async def home(
 async def favorites_page(request: Request, q: str = Query(None)):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/#auth", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
 
     query_str = """
-        SELECT p.*, u.username,
+        SELECT p.*, COALESCE(u.username, 'anonymous') as username,
                (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'like') AS likes,
                (SELECT COUNT(*) FROM interactions WHERE plate_id = p.id AND type = 'save') AS saves,
                (SELECT COUNT(*) FROM comments WHERE plate_id = p.id) AS comment_count
         FROM interactions i
         JOIN plates p ON i.plate_id = p.id
-        JOIN users u ON p.user_id = u.id
+        LEFT JOIN users u ON p.user_id = u.id
         WHERE i.user_id = %s AND i.type = 'save'
     """
     params = [user["id"]]
@@ -831,9 +833,10 @@ async def favorites_page(request: Request, q: str = Query(None)):
 
     for plate in saved_plates:
         c.execute("""
-            SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, u.username
+            SELECT c.id, c.comment, TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI') as formatted_date, 
+                   COALESCE(u.username, 'anonymous') as username
             FROM comments c
-            JOIN users u ON c.user_id = u.id
+            LEFT JOIN users u ON c.user_id = u.id
             WHERE c.plate_id = %s
             ORDER BY c.created_at ASC
         """, (plate["id"],))
@@ -855,7 +858,7 @@ async def favorites_page(request: Request, q: str = Query(None)):
 async def my_plates_page(request: Request):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/#auth", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
@@ -882,7 +885,7 @@ async def my_plates_page(request: Request):
     )
 
 
-# --- CREATE PLATE (PERSISTS TO SHARED RESTAURANTS REGISTRY) ---
+# --- CREATE PLATE (ALLOWS ANONYMOUS POSTING) ---
 
 @app.post("/plates")
 async def create_plate(
@@ -898,10 +901,10 @@ async def create_plate(
     rating: int = Form(None),
     reorder: str = Form(None),
     photo: UploadFile = File(None),
+    guest_email: str = Form(None)
 ):
     user = get_current_user(request)
-    if not user:
-        return RedirectResponse(url="/", status_code=303)
+    author_id = user["id"] if user else None
 
     is_skipped = skip_rating == "true"
     photo_url = None
@@ -931,7 +934,6 @@ async def create_plate(
 
     if rest_row:
         restaurant_id = rest_row["id"]
-        # Update missing address/coords if newly available
         if (lat and lon) or clean_web or clean_addr:
             c.execute("""
                 UPDATE restaurants 
@@ -946,10 +948,10 @@ async def create_plate(
             INSERT INTO restaurants (name, address, website, latitude, longitude, created_by_user_id)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (clean_rest, clean_addr, clean_web, lat, lon, user["id"]))
+        """, (clean_rest, clean_addr, clean_web, lat, lon, author_id))
         restaurant_id = c.fetchone()["id"]
 
-    # Insert Plate linked to the Shared Restaurant ID
+    # Insert Plate (allows NULL author_id)
     c.execute("""
         INSERT INTO plates (
             user_id, restaurant_id, dish_name, restaurant, category, restaurant_address, 
@@ -957,7 +959,7 @@ async def create_plate(
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """, (
-        user["id"], restaurant_id, dish_name.strip(), clean_rest,
+        author_id, restaurant_id, dish_name.strip(), clean_rest,
         (category or "Other").strip(), clean_addr, clean_web,
         lat, lon, photo_url, final_rating, final_reorder
     ))
@@ -966,8 +968,10 @@ async def create_plate(
     c.close()
     conn.close()
 
-    if is_skipped:
-        schedule_rating_reminder(plate_id, user["email"])
+    # Deferred rating scheduling
+    reminder_target = user["email"] if user else (guest_email.strip() if guest_email else None)
+    if is_skipped and reminder_target:
+        schedule_rating_reminder(plate_id, reminder_target)
 
     return RedirectResponse(url="/", status_code=303)
 
@@ -978,7 +982,7 @@ async def create_plate(
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/#auth", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
@@ -1003,18 +1007,19 @@ async def interact_plate(plate_id: int, action_type: str = Form(...), request: R
     return RedirectResponse(url=referer, status_code=303)
 
 
+# --- COMMENTS (ALLOWS ANONYMOUS COMMENTING) ---
+
 @app.post("/plates/{plate_id}/comments")
 async def add_comment(plate_id: int, comment: str = Form(...), request: Request = None):
     user = get_current_user(request)
-    if not user:
-        return RedirectResponse(url="/", status_code=303)
+    author_id = user["id"] if user else None
 
     if comment.strip():
         conn = get_connection()
         c = conn.cursor()
         c.execute(
             "INSERT INTO comments (user_id, plate_id, comment) VALUES (%s, %s, %s)",
-            (user["id"], plate_id, comment.strip()),
+            (author_id, plate_id, comment.strip()),
         )
         conn.commit()
         c.close()

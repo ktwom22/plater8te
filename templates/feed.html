@@ -71,7 +71,7 @@
   }
   </script>
 
-  <!-- Structured Data: FAQPage for AI Search Engines (ChatGPT, Claude, Perplexity) -->
+  <!-- Structured Data: FAQPage for AI Search Engines -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -173,7 +173,7 @@
           </div>
         {% else %}
           <a href="#auth" class="text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-3.5 py-1.5 rounded-full border border-slate-200 transition">
-            Sign In
+            Sign In / Register
           </a>
         {% endif %}
       </div>
@@ -246,7 +246,7 @@
       </form>
     </div>
 
-    <!-- Active GPS Notification -->
+    <!-- Active Location Banner -->
     {% if user_lat and user_lon %}
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-2xl text-xs flex items-center justify-between font-semibold">
       <span>📍 Centered on your device GPS (within 5 miles)</span>
@@ -272,7 +272,20 @@
       </button>
     </div>
 
-    <!-- Guest Auth Card -->
+    <!-- Global "Drop Plate" Banner (Visible to EVERYONE) -->
+    <div class="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-r from-rose-500 via-rose-600 to-orange-500 text-white flex items-center justify-between coral-glow">
+      <div class="space-y-0.5">
+        <h3 class="font-black text-lg tracking-tight">Eating something good?</h3>
+        <p class="text-xs text-rose-100 font-medium">Rate any dish instantly. No account required.</p>
+      </div>
+      <button type="button" onclick="openPostModal()"
+              class="bg-white text-rose-600 hover:bg-rose-50 font-black px-4 py-2.5 rounded-2xl text-xs shadow-md transition transform active:scale-95 flex items-center space-x-1.5">
+        <span class="text-sm leading-none">+</span>
+        <span>Drop Plate</span>
+      </button>
+    </div>
+
+    <!-- Guest Sign-in Drawer (Collapsible) -->
     {% if not user %}
     <div id="auth" class="plate-card rounded-3xl overflow-hidden scroll-mt-20">
       {% if auth_error %}
@@ -317,7 +330,6 @@
             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
             <input type="email" name="email" required placeholder="you@domain.com"
                    class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
-            <p class="text-[10px] text-slate-400 mt-1">Used for your 45-minute post-meal review reminder.</p>
           </div>
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Create Password</label>
@@ -325,25 +337,10 @@
                    class="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:bg-white focus:border-rose-500 transition">
           </div>
           <button type="submit" class="w-full bg-slate-900 hover:bg-black text-white font-black py-3 rounded-xl shadow-md transition transform active:scale-[0.98] text-xs uppercase tracking-wider">
-            Create Account
+            Create Account & Earn Badges
           </button>
         </form>
       </div>
-    </div>
-    {% endif %}
-
-    <!-- Action Card (Logged In) -->
-    {% if user %}
-    <div class="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-r from-rose-500 via-rose-600 to-orange-500 text-white flex items-center justify-between coral-glow">
-      <div class="space-y-0.5">
-        <h3 class="font-black text-lg tracking-tight">Eating something good?</h3>
-        <p class="text-xs text-rose-100 font-medium">Rate the plate or queue a 45-minute digest reminder.</p>
-      </div>
-      <button type="button" onclick="openPostModal()"
-              class="bg-white text-rose-600 hover:bg-rose-50 font-black px-4 py-2.5 rounded-2xl text-xs shadow-md transition transform active:scale-95 flex items-center space-x-1.5">
-        <span class="text-sm leading-none">+</span>
-        <span>Drop Plate</span>
-      </button>
     </div>
     {% endif %}
 
@@ -440,7 +437,7 @@
 
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none"></div>
 
-          <!-- Top Badge Bar -->
+          <!-- Top Badges -->
           <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 max-w-[70%]">
             {% if plate.category %}
               <span class="text-[11px] font-bold bg-white/95 backdrop-blur-md text-slate-900 px-2.5 py-0.5 rounded-full shadow-md border border-white/40">
@@ -522,7 +519,7 @@
           </div>
           {% endif %}
 
-          <!-- Author Profile & User Badges -->
+          <!-- Author Info (Gracefully defaults to @anonymous) -->
           <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 pt-1">
             <span>Posted by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
             {% for ub in plate.author_badges %}
@@ -558,6 +555,7 @@
             </button>
           </div>
 
+          <!-- Comments Drawer (Anyone can comment) -->
           <div id="comments-drawer-{{ plate.id }}" class="hidden pt-3 border-t border-slate-100 space-y-3">
             <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
               {% if not plate.comments %}
@@ -575,17 +573,13 @@
               {% endfor %}
             </div>
 
-            {% if user %}
             <form action="/plates/{{ plate.id }}/comments" method="post" class="flex space-x-2 pt-1">
-              <input type="text" name="comment" placeholder="Add your take..." required
+              <input type="text" name="comment" placeholder="{% if user %}Add your take...{% else %}Add your take (as @anonymous)...{% endif %}" required
                      class="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 outline-none focus:bg-white focus:border-rose-500">
               <button type="submit" class="bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs hover:bg-black transition">
                 Post
               </button>
             </form>
-            {% else %}
-              <p class="text-[11px] text-slate-400 italic"><a href="#auth" class="text-rose-600 underline">Sign in</a> to leave your review.</p>
-            {% endif %}
           </div>
 
         </div>
@@ -595,14 +589,12 @@
 
   </main>
 
-  <!-- Sticky Mobile FAB -->
-  {% if user %}
+  <!-- Sticky Mobile FAB (Available to everyone) -->
   <button type="button" onclick="openPostModal()"
           class="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-rose-600 to-orange-500 text-white font-black px-5 py-3.5 rounded-full shadow-xl flex items-center space-x-2 transition transform hover:scale-105 active:scale-95 coral-glow">
     <span class="text-lg leading-none">+</span>
     <span class="text-xs tracking-wider uppercase">Post Plate</span>
   </button>
-  {% endif %}
 
   <!-- ================= ROULETTE / RANDOMIZER MODAL ================= -->
   <div id="rouletteModalOverlay" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md hidden flex items-center justify-center p-4">
@@ -639,20 +631,33 @@
     </div>
   </div>
 
-  <!-- ================= POST MODAL WITH MANUAL RESTAURANT ADD ================= -->
-  {% if user %}
+  <!-- ================= POST MODAL (FOR REGISTERED & ANONYMOUS USERS) ================= -->
   <div id="postModalOverlay" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
 
       <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
           <h2 class="font-black text-lg text-slate-900">Log a New Plate</h2>
-          <p class="text-[11px] text-slate-500">Share your plate or trigger a 45-minute deferred digest.</p>
+          <p class="text-[11px] text-slate-500">Share your plate or queue a 45-minute deferred digest.</p>
         </div>
         <button type="button" onclick="closePostModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold p-1">&times;</button>
       </div>
 
       <div class="p-6 overflow-y-auto space-y-4">
+
+        <!-- Anonymous Notice Banner -->
+        {% if not user %}
+        <div class="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-3.5 text-xs text-indigo-950 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-base">👤</span>
+            <p>Posting as <strong>@anonymous</strong>.</p>
+          </div>
+          <a href="#auth" onclick="closePostModal()" class="text-[11px] font-bold text-indigo-700 underline hover:text-indigo-900">
+            Sign in for critic badges
+          </a>
+        </div>
+        {% endif %}
+
         <form id="platePostForm" action="/plates" method="post" enctype="multipart/form-data" class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -766,12 +771,19 @@
             </div>
           </div>
 
-          <div class="bg-rose-50 p-3.5 rounded-2xl border border-rose-100">
+          <div class="bg-rose-50 p-3.5 rounded-2xl border border-rose-100 space-y-2">
             <label class="flex items-center space-x-2.5 text-xs font-medium text-rose-900 cursor-pointer">
               <input type="checkbox" name="skip_rating" value="true" id="skipToggle" onchange="toggleRatingFields(this)"
                      class="w-4 h-4 rounded text-rose-600 focus:ring-0">
               <span>Haven't finished eating? Send me a rating link in 45 mins</span>
             </label>
+
+            {% if not user %}
+            <div id="guestEmailBox" class="hidden pt-1">
+              <input type="email" name="guest_email" placeholder="Your email for the 45-min reminder..."
+                     class="w-full bg-white border border-rose-200 px-3 py-2 rounded-xl text-xs text-slate-800 outline-none focus:border-rose-500">
+            </div>
+            {% endif %}
           </div>
 
           <div id="ratingFields" class="space-y-4">
@@ -815,9 +827,8 @@
 
     </div>
   </div>
-  {% endif %}
 
-  <!-- ================= CLIENT DATA & SCRIPTS ================= -->
+  <!-- ================= SCRIPTS ================= -->
   <script>
     const currentPlates = [
       {% for p in plates %}
@@ -1099,7 +1110,9 @@
 
     function toggleRatingFields(checkbox) {
       const fields = document.getElementById('ratingFields');
+      const guestBox = document.getElementById('guestEmailBox');
       if (fields) fields.style.display = checkbox.checked ? 'none' : 'block';
+      if (guestBox) guestBox.style.display = checkbox.checked ? 'block' : 'none';
     }
 
     if (fileInput) {

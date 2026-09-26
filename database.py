@@ -26,7 +26,7 @@ def init_db():
     conn = get_connection()
     c = conn.cursor()
 
-    # Users
+    # Users Table
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -36,7 +36,7 @@ def init_db():
     );
     """)
 
-    # Shared Restaurants Registry (Custom and Cached Spots)
+    # Shared Restaurants Registry
     c.execute("""
     CREATE TABLE IF NOT EXISTS restaurants (
         id SERIAL PRIMARY KEY,
@@ -51,11 +51,11 @@ def init_db():
     );
     """)
 
-    # Plates
+    # Plates Table (Allows NULL user_id for anonymous posters)
     c.execute("""
     CREATE TABLE IF NOT EXISTS plates (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL,
         dish_name VARCHAR(255) NOT NULL,
         restaurant VARCHAR(255) NOT NULL,
@@ -72,27 +72,7 @@ def init_db():
     );
     """)
 
-    # Safe Migrations
-    c.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name='plates' AND column_name='category'
-            ) THEN
-                ALTER TABLE plates ADD COLUMN category VARCHAR(100);
-            END IF;
-
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name='plates' AND column_name='restaurant_id'
-            ) THEN
-                ALTER TABLE plates ADD COLUMN restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL;
-            END IF;
-        END $$;
-    """)
-
-    # Interactions
+    # Interactions Table
     c.execute("""
     CREATE TABLE IF NOT EXISTS interactions (
         id SERIAL PRIMARY KEY,
@@ -103,21 +83,59 @@ def init_db():
     );
     """)
 
-    # Comments
+    # Comments Table (Allows NULL user_id for anonymous commenters)
     c.execute("""
     CREATE TABLE IF NOT EXISTS comments (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         plate_id INTEGER NOT NULL REFERENCES plates(id) ON DELETE CASCADE,
         comment TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
+    # Safe Migrations: Add columns and drop NOT NULL constraints for anonymous support
+    c.execute("""
+        DO $$
+        BEGIN
+            -- Ensure category exists
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='plates' AND column_name='category'
+            ) THEN
+                ALTER TABLE plates ADD COLUMN category VARCHAR(100);
+            END IF;
+
+            -- Ensure restaurant_id exists
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='plates' AND column_name='restaurant_id'
+            ) THEN
+                ALTER TABLE plates ADD COLUMN restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL;
+            END IF;
+
+            -- Allow plates.user_id to be NULL for anonymous posting
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='plates' AND column_name='user_id' AND is_nullable='NO'
+            ) THEN
+                ALTER TABLE plates ALTER COLUMN user_id DROP NOT NULL;
+            END IF;
+
+            -- Allow comments.user_id to be NULL for anonymous commenting
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='comments' AND column_name='user_id' AND is_nullable='NO'
+            ) THEN
+                ALTER TABLE comments ALTER COLUMN user_id DROP NOT NULL;
+            END IF;
+        END $$;
+    """)
+
     conn.commit()
     c.close()
     conn.close()
-    print("[Postgres] Database initialized with shared restaurants registry.")
+    print("[Postgres] Database initialized with anonymous posting support and shared restaurant registry.")
 
 
 if __name__ == "__main__":
