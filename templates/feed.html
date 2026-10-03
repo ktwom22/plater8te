@@ -88,11 +88,11 @@
       </form>
 
       <!-- Action items -->
-      <div class="flex items-center space-x-2 shrink-0">
+      <div class="flex items-center space-x-1.5 shrink-0">
         <button type="button" onclick="openFeedbackModal()"
-                class="text-xs font-bold text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-full transition flex items-center space-x-1">
+                class="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-full transition flex items-center space-x-1">
           <span>💡</span>
-          <span>Feedback</span>
+          <span class="hidden sm:inline">Feedback</span>
         </button>
 
         <button type="button" onclick="openPostModal()"
@@ -106,7 +106,7 @@
             <a href="/logout" class="text-xs text-slate-400 hover:text-rose-600 font-semibold ml-1">Exit</a>
           </div>
         {% else %}
-          <button type="button" onclick="openAuthModal()" class="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full border border-slate-200 transition">
+          <button type="button" onclick="openAuthModal()" class="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-full border border-slate-200 transition">
             Sign In
           </button>
         {% endif %}
@@ -168,7 +168,7 @@
     </div>
     {% endif %}
 
-    <!-- Plate Duel of the Week (Safe Data-Attribute Sharing) -->
+    <!-- Plate Duel of the Week -->
     {% if active_duel %}
     <div id="duelSection" class="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm scroll-mt-20">
       <div class="flex justify-between items-center">
@@ -359,36 +359,31 @@
         </div>
       {% endif %}
 
+      <!-- Streamlined High-Engagement Plate Cards -->
       {% for plate in plates %}
       <article id="plate-{{ plate.id }}" class="plate-card rounded-3xl overflow-hidden transition scroll-mt-20">
 
         {% if plate.photo_url %}
-        <div class="relative w-full aspect-square bg-slate-100 overflow-hidden group">
+        <div class="relative w-full aspect-[4/3] bg-slate-100 overflow-hidden">
           <img src="{{ plate.photo_url }}" alt="{{ plate.dish_name }}"
-               class="w-full h-full object-cover object-center group-hover:scale-[1.01] transition duration-300">
+               class="w-full h-full object-cover">
 
-          <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none"></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20 pointer-events-none"></div>
 
-          <!-- Minimal Badge Overlay -->
-          <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 max-w-[75%]">
+          <!-- Prominent Visual Badges -->
+          <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 items-center">
             {% if plate.plate_badges %}
-              <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-sm border backdrop-blur-md {{ plate.plate_badges[0].color }}">
+              <span class="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-md backdrop-blur-md border {{ plate.plate_badges[0].color }}">
                 {{ plate.plate_badges[0].icon }} {{ plate.plate_badges[0].label }}
               </span>
-            {% elif plate.category %}
-              <span class="text-[10px] font-bold bg-white/95 backdrop-blur-md text-slate-900 px-2 py-0.5 rounded-full shadow-sm">
-                {{ plate.category }}
-              </span>
             {% endif %}
 
-            {% if plate.distance_miles is not none %}
-              <span class="text-[10px] font-bold bg-black/60 text-white backdrop-blur-md px-2 py-0.5 rounded-full">
-                📍 {{ plate.distance_miles }} mi
-              </span>
-            {% endif %}
+            <span class="text-[10px] font-bold bg-white/95 backdrop-blur-md text-slate-800 px-2.5 py-0.5 rounded-full shadow-sm">
+              {{ plate.category or 'Dish' }}
+            </span>
           </div>
 
-          <!-- Score Pill -->
+          <!-- Score Card -->
           <div class="absolute top-3 right-3">
             {% if plate.rating %}
               <div class="score-badge text-white font-black px-2.5 py-1 rounded-2xl text-xs flex items-center space-x-1">
@@ -396,106 +391,91 @@
                 <span>{{ plate.rating }}.0</span>
               </div>
             {% else %}
-              <span class="bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xl shadow-sm">
+              <span class="bg-rose-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-xl shadow-sm">
                 Unrated
               </span>
             {% endif %}
           </div>
+
+          <!-- Bottom Title Overlay -->
+          <div class="absolute bottom-3 left-3 right-3 text-white space-y-0.5">
+            <h3 class="text-lg font-black leading-tight drop-shadow-md">{{ plate.dish_name }}</h3>
+            <p class="text-xs font-bold text-rose-300 drop-shadow flex items-center space-x-1">
+              <span>📍 {{ plate.restaurant }}</span>
+              {% if plate.distance_miles is not none %}
+                <span class="text-white/80 font-normal">• {{ plate.distance_miles }} mi</span>
+              {% endif %}
+            </p>
+          </div>
         </div>
         {% endif %}
 
-        <div class="p-4 space-y-3">
-          <div class="flex justify-between items-start gap-3">
-            <div class="space-y-0.5">
-              <h3 class="text-base font-extrabold text-slate-900 leading-snug">{{ plate.dish_name }}</h3>
-              <p class="text-xs font-bold text-rose-600 flex items-center space-x-1">
-                <span>📍</span>
-                <span>{{ plate.restaurant }}</span>
-              </p>
-              {% if plate.restaurant_address %}
-                <p class="text-[11px] text-slate-400 leading-tight">{{ plate.restaurant_address }}</p>
+        <!-- Clean Interactive Footer -->
+        <div class="p-3.5 space-y-3 bg-white">
+
+          <!-- One-Tap Verdict & Author -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              {% if plate.reorder == 'Hell yes' %}
+                <span class="text-[11px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  🔥 Must Reorder
+                </span>
+              {% elif plate.reorder == 'Pass' %}
+                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                  Pass
+                </span>
               {% endif %}
+
+              <span class="text-[11px] text-slate-400 font-semibold">
+                by <strong class="text-slate-700">@{{ plate.username }}</strong>
+              </span>
             </div>
 
-            {% if plate.reorder %}
-              <div>
-                {% if plate.reorder == 'Hell yes' %}
-                  <span class="inline-flex items-center space-x-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span>🔥 Reorder</span>
-                  </span>
-                {% else %}
-                  <span class="inline-flex items-center space-x-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                    <span>Pass</span>
-                  </span>
-                {% endif %}
-              </div>
-            {% endif %}
-          </div>
-
-          {% if plate.restaurant_website %}
-          <div>
-            <a href="{{ plate.restaurant_website }}" target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-700 hover:text-slate-900 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/70 transition">
-              <span>View Spot / Menu</span>
-              <span class="text-slate-400">↗</span>
-            </a>
-          </div>
-          {% endif %}
-
-          <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-500">
-            <span class="text-[11px]">by <strong class="text-slate-700">@{{ plate.username }}</strong></span>
-
-            <div class="flex items-center space-x-2">
+            <!-- Instant Interaction Buttons -->
+            <div class="flex items-center space-x-1.5">
               <form action="/plates/{{ plate.id }}/interact" method="post">
                 <input type="hidden" name="action_type" value="like">
-                <button type="submit" class="flex items-center space-x-1 text-slate-500 hover:text-rose-600 font-bold transition px-1">
+                <button type="submit" class="flex items-center space-x-1 bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border border-slate-200/80 px-2.5 py-1 rounded-xl text-xs font-bold transition">
                   <span>❤️</span>
                   <span>{{ plate.likes }}</span>
                 </button>
               </form>
 
-              <form action="/plates/{{ plate.id }}/interact" method="post">
-                <input type="hidden" name="action_type" value="save">
-                <button type="submit" class="flex items-center space-x-1 text-slate-500 hover:text-indigo-600 font-bold transition px-1">
-                  <span>🔖</span>
-                  <span>{{ plate.saves }}</span>
-                </button>
-              </form>
-
               <button type="button" onclick="toggleComments('{{ plate.id }}')"
-                      class="flex items-center space-x-1 text-slate-500 hover:text-slate-900 font-bold transition px-1">
+                      class="flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80 px-2.5 py-1 rounded-xl text-xs font-bold transition">
                 <span>💬 {{ plate.comment_count }}</span>
               </button>
 
               <button type="button"
                       id="share-btn-{{ plate.id }}"
                       onclick="sharePlate('{{ plate.id }}', '{{ plate.dish_name | escape }}', '{{ plate.restaurant | escape }}', '{{ plate.rating or '' }}')"
-                      class="flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg font-bold transition text-[11px] ml-1">
+                      class="flex items-center space-x-1 bg-slate-900 hover:bg-black text-white px-2.5 py-1 rounded-xl text-xs font-bold transition">
                 <span>🔗</span>
                 <span id="share-text-{{ plate.id }}">Share</span>
               </button>
             </div>
           </div>
 
+          <!-- Micro Comments Drawer -->
           <div id="comments-drawer-{{ plate.id }}" class="hidden pt-2 border-t border-slate-100 space-y-2">
-            <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+            <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
               {% if not plate.comments %}
-                <p class="text-[11px] text-slate-400 italic py-1">No comments yet. Start the conversation!</p>
+                <p class="text-[11px] text-slate-400 italic py-1">No takes yet. Drop the first verdict!</p>
               {% endif %}
 
               {% for c in plate.comments %}
-              <div class="bg-slate-50 rounded-xl p-2.5 text-xs space-y-0.5 border border-slate-100">
-                <div class="flex justify-between items-center text-[10px]">
+              <div class="bg-slate-50 rounded-xl p-2 text-xs border border-slate-100">
+                <div class="flex justify-between items-center text-[10px] text-slate-400 mb-0.5">
                   <span class="font-bold text-slate-800">@{{ c.username }}</span>
-                  <span class="text-slate-400">{{ c.formatted_date }}</span>
+                  <span>{{ c.formatted_date }}</span>
                 </div>
-                <p class="text-slate-600 leading-relaxed">{{ c.comment }}</p>
+                <p class="text-slate-700 leading-snug">{{ c.comment }}</p>
               </div>
               {% endfor %}
             </div>
 
             <form action="/plates/{{ plate.id }}/comments" method="post" class="flex space-x-2 pt-1">
-              <input type="text" name="comment" placeholder="{% if user %}Add your take...{% else %}Add your take (as @anonymous)...{% endif %}" required
+              <input type="text" name="comment" placeholder="Add your take (agree or overrated?)..." required
                      class="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none focus:bg-white focus:border-rose-500">
               <button type="submit" class="bg-slate-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs hover:bg-black transition">
                 Post
