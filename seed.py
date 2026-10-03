@@ -1,5 +1,5 @@
 """
-seed.py - Seeds national plates with accurate dish imagery and verified spots.
+seed.py - Seeds users, multi-region restaurants, plates with accurate photography, duels, and trails.
 Run: python seed.py
 """
 import os
@@ -15,11 +15,11 @@ SAMPLE_USERS = [
     {"username": "sarah_eats", "email": "sarah@platerate.com", "password": "password123"},
     {"username": "local_critic", "email": "critic@platerate.com", "password": "password123"},
     {"username": "austin_pitmaster", "email": "austin@platerate.com", "password": "password123"},
-    {"username": "nyc_foodie", "email": "nyc@platerate.com", "password": "password123"}
+    {"username": "nyc_slice_hunter", "email": "nyc@platerate.com", "password": "password123"}
 ]
 
 SAMPLE_RESTAURANTS = [
-    # NH / ME Local
+    # NH / ME Core
     {
         "name": "Bad Brgr",
         "address": "17 N Main St, Rochester, NH 03867",
@@ -58,6 +58,12 @@ SAMPLE_RESTAURANTS = [
         "website": "https://reginapizzeria.com",
         "latitude": 42.3655, "longitude": -71.0573
     },
+    {
+        "name": "Neptune Oyster",
+        "address": "63 Salem St, Boston, MA 02113",
+        "website": "https://neptuneoyster.com",
+        "latitude": 42.3634, "longitude": -71.0560
+    },
     # New York City, NY
     {
         "name": "Joe's Pizza",
@@ -86,90 +92,117 @@ SAMPLE_RESTAURANTS = [
     },
     # Chicago, IL
     {
+        "name": "Au Cheval",
+        "address": "800 W Randolph St, Chicago, IL 60607",
+        "website": "https://auchevaldiner.com",
+        "latitude": 41.8841, "longitude": -87.6477
+    },
+    {
         "name": "Pequod's Pizza",
         "address": "2207 N Clybourn Ave, Chicago, IL 60614",
         "website": "https://pequodspizza.com",
-        "latitude": 41.9219, "longitude": -86.6644
+        "latitude": 41.9219, "longitude": -87.6644
+    },
+    # Los Angeles, CA
+    {
+        "name": "Guisados",
+        "address": "2100 E Cesar E Chavez Ave, Los Angeles, CA 90033",
+        "website": "https://www.guisados.la",
+        "latitude": 34.0475, "longitude": -118.2144
     }
 ]
 
 SAMPLE_PLATES = [
-    # 1. Double Smash Burger
+    # Smash Burgers
     {
         "author_index": 0, "rest_index": 0, "dish_name": "Truffle Double Smash Burger",
         "category": "Burgers", "rating": 10, "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Lacy crust edges with melted sharp cheddar. Best burger in NH."]
+        "photo_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Lacy crust edges with melted sharp cheddar. Best burger on the NH Seacoast."]
     },
-    # 2. Crispy Hot Chicken
     {
-        "author_index": 1, "rest_index": 1, "dish_name": "Crispy Nashville Hot Chicken",
+        "author_index": 4, "rest_index": 8, "dish_name": "East Village Classic Cheeseburger",
+        "category": "Burgers", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Paper thin patties, toasted potato roll, melted American. Zero filler."]
+    },
+    {
+        "author_index": 0, "rest_index": 11, "dish_name": "Au Cheval Single with Bacon & Egg",
+        "category": "Burgers", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Thick slab bacon and velvety dijonnaise. Lives up to the legendary reputation."]
+    },
+    # Chicken & Sandwiches
+    {
+        "author_index": 1, "rest_index": 1, "dish_name": "Crispy Bistro Fried Chicken Sandwich",
         "category": "Burgers", "rating": 9, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Huge crunch, sweet hot glaze, dill pickles cut right through."]
+        "comments": ["Massive crunch, spicy house mayo, crisp pickles."]
     },
-    # 3. Hot Honey Pepperoni
+    # Pizza Varieties
     {
         "author_index": 2, "rest_index": 2, "dish_name": "Hot Honey Cupped Pepperoni Pizza",
         "category": "Pizza", "rating": 9, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1000&q=80",
         "comments": ["Crispy char blisters and genuine spicy honey drizzle."]
     },
-    # 4. Brown Butter Lobster Roll
+    {
+        "author_index": 2, "rest_index": 5, "dish_name": "North End Brick-Oven Cheese Pie",
+        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Thin, charred, tangy crushed tomato base. Boston classic."]
+    },
+    {
+        "author_index": 4, "rest_index": 7, "dish_name": "Classic NY Mozzarella Street Slice",
+        "category": "Pizza", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["The gold standard NYC slice. Zero grease flop, crisp snap."]
+    },
+    {
+        "author_index": 1, "rest_index": 12, "dish_name": "Caramelized Crust Deep Dish Pizza",
+        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1590947132387-155cc02f3212?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["That blackened cheese rim crust is iconic."]
+    },
+    # Seafood / Lobster
     {
         "author_index": 0, "rest_index": 3, "dish_name": "Brown Butter Steamed Lobster Roll",
         "category": "Seafood", "rating": 10, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Served warm on a pillowy steamed bun. Absolute perfection."]
+        "comments": ["Served warm on a pillowy steamed bun. Best bite in Portland."]
     },
-    # 5. Duck Fat Fries & Poutine
     {
-        "author_index": 1, "rest_index": 4, "dish_name": "Hand-Cut Duckfat Poutine",
-        "category": "Other", "rating": 9, "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Fried twice in duck fat with local squeaky curd."]
+        "author_index": 2, "rest_index": 6, "dish_name": "Hot Buttered Maine Lobster Roll",
+        "category": "Seafood", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Heaping meat, crisp grilled roll, worth every penny."]
     },
-    # 6. North End Artisan Pie
+    # BBQ & Meat
     {
-        "author_index": 2, "rest_index": 5, "dish_name": "Boston North End Brick-Oven Pie",
-        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Thin, charred, tangy crushed tomato base."]
-    },
-    # 7. NYC Street Slice
-    {
-        "author_index": 4, "rest_index": 6, "dish_name": "Classic NY Cheese Slice",
-        "category": "Pizza", "rating": 10, "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["The quintessential New York fold. Zero grease flop."]
-    },
-    # 8. Classic Smash
-    {
-        "author_index": 4, "rest_index": 7, "dish_name": "East Village Double Cheeseburger",
-        "category": "Burgers", "rating": 10, "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Paper thin patties, toasted potato roll, melted American."]
-    },
-    # 9. Texas Smoked Brisket
-    {
-        "author_index": 3, "rest_index": 8, "dish_name": "Prime Smoked Texas Brisket",
+        "author_index": 3, "rest_index": 9, "dish_name": "Prime Smoked Texas Beef Brisket",
         "category": "BBQ & Meat", "rating": 10, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Peppery black bark and buttery rendering. World class."]
+        "comments": ["Peppery black bark and buttery rendering. Completely melts in your hand."]
     },
-    # 10. Loaded Street Tacos
+    # Tacos & Mexican
     {
-        "author_index": 3, "rest_index": 9, "dish_name": "Crispy Green Chile Queso Tacos",
+        "author_index": 3, "rest_index": 10, "dish_name": "Green Chile Queso Fried Tacos",
         "category": "Tacos & Mexican", "rating": 9, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["Fresh handmade tortilla, poblano queso drizzle."]
+        "comments": ["Fresh handmade tortilla, poblano queso drizzle, massive crunch."]
     },
-    # 11. Chicago Deep Dish
     {
-        "author_index": 1, "rest_index": 10, "dish_name": "Caramelized Crust Deep Dish",
-        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1590947132387-155cc02f3212?auto=format&fit=crop&w=1000&q=80",
-        "comments": ["That blackened cheese rim crust is iconic."]
+        "author_index": 2, "rest_index": 13, "dish_name": "Handmade Tinga & Chicharrón Tacos",
+        "category": "Tacos & Mexican", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Tortillas pressed right in front of you. Deep, braised chile flavor."]
+    },
+    # Poutine & Sides
+    {
+        "author_index": 1, "rest_index": 4, "dish_name": "Duckfat Poutine & Curd Gravy",
+        "category": "Other", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&w=1000&q=80",
+        "comments": ["Twice-fried in duck fat with local squeaky curd."]
     }
 ]
 
@@ -203,7 +236,7 @@ def run_seed():
         """, (r["name"], r["address"], r["website"], r["latitude"], r["longitude"], user_ids[0]))
         rest_ids.append(c.fetchone()["id"])
 
-    print("[*] Seeding updated plates with matching photos...")
+    print("[*] Seeding updated plates with matching dish photography...")
     plate_ids = []
     for p in SAMPLE_PLATES:
         author_id = user_ids[p["author_index"]]
@@ -245,7 +278,24 @@ def run_seed():
             c.execute("""
                 INSERT INTO duels (title, plate_a_id, plate_b_id, votes_a, votes_b, is_active)
                 VALUES (%s, %s, %s, 42, 38, TRUE)
-            """, ("The Clash: Bad Brgr Smash vs. Nashville Hot Chicken", plate_ids[0], plate_ids[1]))
+            """, ("Smash Burger Clash: Bad Brgr vs. East Village Classic", plate_ids[0], plate_ids[1]))
+
+    print("[*] Seeding Foodie Trails...")
+    c.execute("SELECT id FROM trails WHERE slug = 'seacoast-burger-trail'")
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO trails (title, slug, description, badge_reward)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """, (
+            "The Seacoast Smash Tour",
+            "seacoast-burger-trail",
+            "Conquer the top independent smash burgers across the Seacoast.",
+            "Burger Baron 🍔"
+        ))
+        trail_id = c.fetchone()["id"]
+        c.execute("INSERT INTO trail_items (trail_id, plate_id, order_index) VALUES (%s, %s, 1)", (trail_id, plate_ids[0]))
+        c.execute("INSERT INTO trail_items (trail_id, plate_id, order_index) VALUES (%s, %s, 2)", (trail_id, plate_ids[3]))
 
     conn.commit()
     c.close()

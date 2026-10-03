@@ -76,7 +76,7 @@
         <span class="text-lg font-black tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">PlateRate</span>
       </a>
 
-      <!-- Compact Search Bar -->
+      <!-- Search Bar -->
       <form action="/" method="get" class="flex-grow max-w-xs relative">
         <input type="text" name="food_query" value="{{ food_query }}" placeholder="Search dishes, tacos, burgers..."
                class="w-full bg-slate-100 border border-transparent focus:border-slate-300 focus:bg-white px-3.5 py-1.5 rounded-full text-xs outline-none transition text-slate-900 placeholder-slate-400">
@@ -103,6 +103,11 @@
         {% if user %}
           <div class="flex items-center space-x-1.5">
             <span class="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">@{{ user.username }}</span>
+            {% if user_badges %}
+              <span class="text-[10px] font-black px-1.5 py-0.5 rounded border {{ user_badges[0].color }}">
+                {{ user_badges[0].icon }} {{ user_badges[0].label }}
+              </span>
+            {% endif %}
             <a href="/logout" class="text-xs text-slate-400 hover:text-rose-600 font-semibold ml-1">Exit</a>
           </div>
         {% else %}
@@ -133,7 +138,7 @@
       </a>
 
       {% for cat in categories %}
-      <a href="/?category={{ cat.name }}&scope={{ scope }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}{% if food_query %}&food_query={{ food_query }}{% endif %}"
+      <a href="/?category={{ cat.name }}&scope={{ scope }}{% if user_lat %}&user_lat={{ user_lat }}&user_lon={{ user_lon }}{% endif %}{% if location_query %}&location_query={{ location_query }}{% endif %}"
          class="whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-full transition flex items-center space-x-1 {% if selected_category == cat.name %}bg-rose-600 text-white border-transparent{% else %}bg-white text-slate-700 border border-slate-200{% endif %} shrink-0">
         <span>{{ cat.icon }}</span>
         <span>{{ cat.name }}</span>
@@ -413,7 +418,7 @@
         <!-- Clean Interactive Footer -->
         <div class="p-3.5 space-y-3 bg-white">
 
-          <!-- One-Tap Verdict & Author -->
+          <!-- One-Tap Verdict & Author with Author Badges -->
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
               {% if plate.reorder == 'Hell yes' %}
@@ -426,9 +431,16 @@
                 </span>
               {% endif %}
 
-              <span class="text-[11px] text-slate-400 font-semibold">
-                by <strong class="text-slate-700">@{{ plate.username }}</strong>
-              </span>
+              <div class="flex items-center space-x-1">
+                <span class="text-[11px] text-slate-400 font-semibold">
+                  by <strong class="text-slate-700">@{{ plate.username }}</strong>
+                </span>
+                {% if plate.author_badges %}
+                  <span class="text-[9px] font-black px-1.5 py-0.2 rounded border {{ plate.author_badges[0].color }}">
+                    {{ plate.author_badges[0].icon }} {{ plate.author_badges[0].label }}
+                  </span>
+                {% endif %}
+              </div>
             </div>
 
             <!-- Instant Interaction Buttons -->
@@ -883,7 +895,7 @@
       {% endfor %}
     ];
 
-    // --- SHARE FUNCTION 1: PLATE DUEL OF THE WEEK (Using dataset) ---
+    // --- SHARE FUNCTION 1: PLATE DUEL OF THE WEEK ---
     async function sharePlateDuel() {
       const btn = document.getElementById('duelShareBtn');
       const label = document.getElementById('duelShareText');
