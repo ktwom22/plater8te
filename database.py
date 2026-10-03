@@ -3,10 +3,10 @@ import time
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Fallback directly to your public Railway database URL
 DATABASE_URL = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get(
     "DATABASE_URL",
     "postgresql://postgres:mipHSVDCfYqNNFtvJGcNknSQFHHSuFtP@maglev.proxy.rlwy.net:17278/railway"
+
 )
 
 
@@ -120,7 +120,7 @@ def init_db():
     );
     """)
 
-    # Plate Trails / Hit Lists
+    # Plate Trails
     c.execute("""
     CREATE TABLE IF NOT EXISTS trails (
         id SERIAL PRIMARY KEY,
@@ -142,7 +142,19 @@ def init_db():
     );
     """)
 
-    # Safe Migrations
+    # User Feedback Table
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS feedbacks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        email VARCHAR(255),
+        feedback_type VARCHAR(50) DEFAULT 'general',
+        message TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # Migrations
     c.execute("""
         DO $$
         BEGIN
@@ -165,7 +177,7 @@ def init_db():
     conn.commit()
     c.close()
     conn.close()
-    print("[Postgres] Database initialized with growth engines (Duels, Trails, Anonymous, Registry).")
+    print("[Postgres] Database tables initialized successfully.")
 
 
 if __name__ == "__main__":

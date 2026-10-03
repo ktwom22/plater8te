@@ -1,11 +1,12 @@
 """
-seed.py - Seeds users, restaurants, plates, duels, and trails.
+seed.py - Seeds users, multi-city national restaurants, plates, duels, and trails.
 Run: python seed.py
 """
 import os
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from argon2 import PasswordHasher
-from database import get_connection
+from database import init_db, get_connection
 
 ph = PasswordHasher()
 
@@ -13,9 +14,12 @@ SAMPLE_USERS = [
     {"username": "chef_marcus", "email": "marcus@platerate.com", "password": "password123"},
     {"username": "sarah_eats", "email": "sarah@platerate.com", "password": "password123"},
     {"username": "local_critic", "email": "critic@platerate.com", "password": "password123"},
+    {"username": "austin_pitmaster", "email": "austin@platerate.com", "password": "password123"},
+    {"username": "nyc_foodie", "email": "nyc@platerate.com", "password": "password123"}
 ]
 
 SAMPLE_RESTAURANTS = [
+    # NH / ME (Local Core)
     {
         "name": "Bad Brgr",
         "address": "17 N Main St, Rochester, NH 03867",
@@ -24,94 +28,205 @@ SAMPLE_RESTAURANTS = [
         "longitude": -70.9756
     },
     {
+        "name": "Lexie's Joint",
+        "address": "212 Islington St, Portsmouth, NH 03801",
+        "website": "https://www.peaceloveburgers.com",
+        "latitude": 43.0729,
+        "longitude": -70.7656
+    },
+    {
         "name": "La Festa Brick & Brew",
         "address": "300 Central Ave, Dover, NH 03820",
         "website": "https://www.lafestabrickandbrew.com",
         "latitude": 43.1979,
         "longitude": -70.8737
     },
+    # Portland, ME
     {
-        "name": "Smokey's Greater BBQ",
-        "address": "215 Portland St, Rochester, NH 03867",
-        "website": "https://www.smokeysgreaterbbq.com",
-        "latitude": 43.3089,
-        "longitude": -70.9621
+        "name": "Eventide Oyster Co.",
+        "address": "86 Middle St, Portland, ME 04101",
+        "website": "https://www.eventideoysterco.com",
+        "latitude": 43.6593,
+        "longitude": -70.2520
     },
     {
-        "name": "Tulsi Indian Restaurant",
-        "address": "20 Main St, Kittery, ME 03904",
-        "website": "https://www.tulsirestaurant.com",
-        "latitude": 43.0886,
-        "longitude": -70.7388
+        "name": "Duckfat",
+        "address": "43 Middle St, Portland, ME 04101",
+        "website": "https://duckfat.com",
+        "latitude": 43.6586,
+        "longitude": -70.2505
+    },
+    # Boston, MA
+    {
+        "name": "Neptune Oyster",
+        "address": "63 Salem St, Boston, MA 02113",
+        "website": "https://www.neptuneoyster.com",
+        "latitude": 42.3634,
+        "longitude": -71.0560
     },
     {
-        "name": "Lexie's Joint",
-        "address": "212 Islington St, Portsmouth, NH 03801",
-        "website": "https://www.peaceloveburgers.com",
-        "latitude": 43.0729,
-        "longitude": -70.7656
+        "name": "Regina Pizzeria",
+        "address": "11 1/2 Thacher St, Boston, MA 02113",
+        "website": "https://reginapizzeria.com",
+        "latitude": 42.3655,
+        "longitude": -71.0573
+    },
+    # New York City, NY
+    {
+        "name": "Joe's Pizza",
+        "address": "7 Carmine St, New York, NY 10014",
+        "website": "https://www.joespizzanyc.com",
+        "latitude": 40.7306,
+        "longitude": -74.0021
+    },
+    {
+        "name": "7th Street Burger",
+        "address": "91 E 7th St, New York, NY 10009",
+        "website": "https://7thstreetburger.com",
+        "latitude": 40.7268,
+        "longitude": -73.9845
+    },
+    # Austin, TX
+    {
+        "name": "Franklin Barbecue",
+        "address": "900 E 11th St, Austin, TX 78702",
+        "website": "https://franklinbbq.com",
+        "latitude": 30.2701,
+        "longitude": -97.7313
+    },
+    {
+        "name": "Torchy's Tacos",
+        "address": "1822 S Congress Ave, Austin, TX 78704",
+        "website": "https://torchystacos.com",
+        "latitude": 30.2471,
+        "longitude": -97.7508
+    },
+    # Chicago, IL
+    {
+        "name": "Au Cheval",
+        "address": "800 W Randolph St, Chicago, IL 60607",
+        "website": "https://auchevaldiner.com",
+        "latitude": 41.8841,
+        "longitude": -86.6477
+    },
+    {
+        "name": "Pequod's Pizza",
+        "address": "2207 N Clybourn Ave, Chicago, IL 60614",
+        "website": "https://pequodspizza.com",
+        "latitude": 41.9219,
+        "longitude": -86.6644
+    },
+    # Los Angeles, CA
+    {
+        "name": "Guisados",
+        "address": "2100 E Cesar E Chavez Ave, Los Angeles, CA 90033",
+        "website": "https://www.guisados.la",
+        "latitude": 34.0475,
+        "longitude": -118.2144
     }
 ]
 
 SAMPLE_PLATES = [
+    # NH
     {
-        "author_index": 0,
-        "rest_index": 0,
-        "dish_name": "Truffle Smash Burger",
-        "category": "Burgers",
-        "rating": 10,
-        "reorder": "Hell yes",
+        "author_index": 0, "rest_index": 0, "dish_name": "Truffle Smash Burger",
+        "category": "Burgers", "rating": 10, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Crust on the beef patties was immaculate.", "Best smash burger on the Seacoast hands down."]
+        "comments": ["Crust on the beef patties was immaculate."]
     },
     {
-        "author_index": 1,
-        "rest_index": 4,
-        "dish_name": "Crispy Bistro Fried Chicken Sandwich",
-        "category": "Burgers",
-        "rating": 9,
-        "reorder": "Hell yes",
+        "author_index": 1, "rest_index": 1, "dish_name": "Crispy Bistro Fried Chicken",
+        "category": "Burgers", "rating": 9, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Spicy mayo has a nice kick, incredibly crispy."]
+        "comments": ["Spicy mayo has a nice kick."]
     },
     {
-        "author_index": 1,
-        "rest_index": 1,
-        "dish_name": "Hot Honey Pepperoni Brick-Oven Slice",
-        "category": "Pizza",
-        "rating": 9,
-        "reorder": "Hell yes",
+        "author_index": 2, "rest_index": 2, "dish_name": "Hot Honey Pepperoni Slice",
+        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Crispy undercarriage and real hot honey drizzle."]
+        "comments": ["Crispy undercarriage."]
+    },
+    # Portland, ME
+    {
+        "author_index": 0, "rest_index": 3, "dish_name": "Brown Butter Lobster Roll",
+        "category": "Seafood", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=800&q=80",
+        "comments": ["The warm bao bun and brown butter elevates this to legendary status."]
     },
     {
-        "author_index": 2,
-        "rest_index": 2,
-        "dish_name": "Dry-Rubbed Smoked Brisket Plate",
-        "category": "BBQ & Meat",
-        "rating": 9,
-        "reorder": "Hell yes",
+        "author_index": 1, "rest_index": 4, "dish_name": "Duckfat Poutine & Belgian Fries",
+        "category": "Other", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Duck gravy and local cheese curds are unbeatable."]
+    },
+    # Boston, MA
+    {
+        "author_index": 2, "rest_index": 5, "dish_name": "Maine Lobster Roll (Hot Buttered)",
+        "category": "Seafood", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Heaping meat, crisp bun, worth the wait outside."]
+    },
+    {
+        "author_index": 1, "rest_index": 6, "dish_name": "North End Classic Cheese Pie",
+        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Crisp charred crust, legendary Boston pie."]
+    },
+    # New York City, NY
+    {
+        "author_index": 4, "rest_index": 7, "dish_name": "Classic Fresh Mozzarella Slice",
+        "category": "Pizza", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=800&q=80",
+        "comments": ["The gold standard NYC slice. Zero flop, pure flavor."]
+    },
+    {
+        "author_index": 4, "rest_index": 8, "dish_name": "Double Cheeseburger & Grilled Onions",
+        "category": "Burgers", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Lacy crisp edges, soft potato roll, flawless smash."]
+    },
+    # Austin, TX
+    {
+        "author_index": 3, "rest_index": 9, "dish_name": "Smoked Prime Brisket (Bark & Fat)",
+        "category": "BBQ & Meat", "rating": 10, "reorder": "Hell yes",
         "photo_url": "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Bark was unreal, nice smoke ring."]
+        "comments": ["Unreal smoke ring. Melts in your hand, completely lives up to the hype."]
     },
     {
-        "author_index": 0,
-        "rest_index": 3,
-        "dish_name": "Chicken Tikka Masala & Garlic Naan",
-        "category": "Asian & Noodles",
-        "rating": 9,
-        "reorder": "Hell yes",
-        "photo_url": "https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?auto=format&fit=crop&w=800&q=80",
-        "comments": ["Rich sauce, perfectly pillowy naan."]
+        "author_index": 3, "rest_index": 10, "dish_name": "Trailer Park Taco (Trashy Style)",
+        "category": "Tacos & Mexican", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Fried chicken with green chiles and queso on top."]
+    },
+    # Chicago, IL
+    {
+        "author_index": 0, "rest_index": 11, "dish_name": "Single Cheeseburger + Fried Egg & Bacon",
+        "category": "Burgers", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Thick-cut peppered bacon, dijonnaise, best burger in the Midwest."]
+    },
+    {
+        "author_index": 1, "rest_index": 12, "dish_name": "Caramelized Crust Deep Dish Pizza",
+        "category": "Pizza", "rating": 9, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1590947132387-155cc02f3212?auto=format&fit=crop&w=800&q=80",
+        "comments": ["That blackened cheese crust rim is pure art."]
+    },
+    # Los Angeles, CA
+    {
+        "author_index": 2, "rest_index": 13, "dish_name": "Chicharrón & Tinga Taco Sampler",
+        "category": "Tacos & Mexican", "rating": 10, "reorder": "Hell yes",
+        "photo_url": "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?auto=format&fit=crop&w=800&q=80",
+        "comments": ["Handmade tortillas made on the spot, stewed meats packed with depth."]
     }
 ]
 
 
 def run_seed():
+    init_db()
     conn = get_connection()
     c = conn.cursor()
 
-    print("[*] Seeding users...")
+    print("[*] Seeding national critic users...")
     user_ids = []
     for u in SAMPLE_USERS:
         pwd_hash = ph.hash(u["password"])
@@ -123,7 +238,7 @@ def run_seed():
         """, (u["username"], u["email"], pwd_hash))
         user_ids.append(c.fetchone()["id"])
 
-    print("[*] Seeding restaurants...")
+    print("[*] Seeding national restaurants across major food hubs...")
     rest_ids = []
     for r in SAMPLE_RESTAURANTS:
         c.execute("""
@@ -135,7 +250,7 @@ def run_seed():
         """, (r["name"], r["address"], r["website"], r["latitude"], r["longitude"], user_ids[0]))
         rest_ids.append(c.fetchone()["id"])
 
-    print("[*] Seeding plates...")
+    print("[*] Seeding national plates...")
     plate_ids = []
     for p in SAMPLE_PLATES:
         author_id = user_ids[p["author_index"]] if p["author_index"] is not None else None
@@ -172,7 +287,7 @@ def run_seed():
         if not c.fetchone():
             c.execute("""
                 INSERT INTO duels (title, plate_a_id, plate_b_id, votes_a, votes_b, is_active)
-                VALUES (%s, %s, %s, 14, 11, TRUE)
+                VALUES (%s, %s, %s, 42, 37, TRUE)
             """, ("Smash Burger Clash: Bad Brgr vs. Lexie's Joint", plate_ids[0], plate_ids[1]))
 
     print("[*] Seeding Foodie Trails...")
@@ -195,7 +310,7 @@ def run_seed():
     conn.commit()
     c.close()
     conn.close()
-    print("[✓] All 5 growth engines seeded successfully.")
+    print("[✓] National coverage and feedback database seeded successfully.")
 
 
 if __name__ == "__main__":

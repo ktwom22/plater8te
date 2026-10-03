@@ -474,6 +474,40 @@ async def search_restaurants(query: str = Query(...)):
     return JSONResponse(results)
 
 
+# --- IN-APP USER FEEDBACK API ---
+
+@app.post("/api/feedback")
+async def submit_feedback(
+        request: Request,
+        message: str = Form(...),
+        feedback_type: str = Form("general"),
+        contact_email: str = Form(None)
+):
+    clean_msg = message.strip()
+    if not clean_msg:
+        return JSONResponse({"status": "error", "message": "Feedback message cannot be blank."}, status_code=400)
+
+    user = get_current_user(request)
+    user_id = user["id"] if user else None
+    email = user["email"] if user else (contact_email.strip() if contact_email else None)
+
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO feedbacks (user_id, email, feedback_type, message)
+            VALUES (%s, %s, %s, %s)
+        """, (user_id, email, feedback_type.strip(), clean_msg))
+        conn.commit()
+        return JSONResponse({"status": "success", "message": "Feedback sent! Thanks for helping shape PlateRate."})
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+    finally:
+        c.close()
+        conn.close()
+
+
 # --- PLATE DUEL VOTING API ---
 
 @app.post("/api/duels/vote")
@@ -689,7 +723,7 @@ async def restaurant_qr_page(restaurant_id: int, request: Request):
     )
 
 
-# --- MAIN FEED ROUTE (WITH ISOLATED TRY-EXCEPT GUARDS) ---
+# --- MAIN FEED ROUTE ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -723,7 +757,7 @@ async def home(
         conn = get_connection()
         c = conn.cursor()
 
-        # Safe Query 1: Active Duel
+        # Query 1: Active Duel
         active_duel = None
         try:
             c.execute("""
@@ -745,10 +779,10 @@ async def home(
                 active_duel = dict(active_duel_row)
                 active_duel["pct_a"] = pct_a
                 active_duel["pct_b"] = pct_b
-        except Exception as e:
+        except Exception:
             conn.rollback()
 
-        # Safe Query 2: Critics & Pioneers
+        # Query 2: Critics & Pioneers
         pioneers_left = 25
         top_critics = []
         try:
@@ -768,7 +802,7 @@ async def home(
         except Exception:
             conn.rollback()
 
-        # Safe Query 3: Trails
+        # Query 3: Trails
         active_trails = []
         try:
             c.execute("SELECT * FROM trails ORDER BY id ASC")
@@ -1102,7 +1136,7 @@ async def create_plate(
 async def interact_plate(plate_id: int, action_type: str = Form(...), request: Request = None):
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/#auth", status_code=303)
 
     conn = get_connection()
     c = conn.cursor()
